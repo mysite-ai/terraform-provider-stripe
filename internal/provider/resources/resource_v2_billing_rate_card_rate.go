@@ -63,6 +63,16 @@ func ResourceV2BillingRateCardRate() *schema.Resource {
 				ForceNew:         true,
 				DiffSuppressFunc: suppressDecimalDiff,
 			},
+			"rate_card": {
+				Type:        schema.TypeString,
+				Description: "The ID of the Rate Card it belongs to.",
+				Computed:    true,
+			},
+			"rate_card_version": {
+				Type:        schema.TypeString,
+				Description: "The ID of the Rate Card Version it was created on.",
+				Computed:    true,
+			},
 			"tiers": {
 				Type:        schema.TypeList,
 				Optional:    true,
@@ -192,6 +202,12 @@ func resourceV2BillingRateCardRateRead(ctx context.Context, d *schema.ResourceDa
 		diags = append(diags, diag.FromErr(err)...)
 	}
 	if err := d.Set("unit_amount", normalizeDecimalString(v2_billing_rate_card_rate.UnitAmount)); err != nil {
+		diags = append(diags, diag.FromErr(err)...)
+	}
+	if err := d.Set("rate_card", v2_billing_rate_card_rate.RateCard); err != nil {
+		diags = append(diags, diag.FromErr(err)...)
+	}
+	if err := d.Set("rate_card_version", v2_billing_rate_card_rate.RateCardVersion); err != nil {
 		diags = append(diags, diag.FromErr(err)...)
 	}
 	if v2_billing_rate_card_rate.MeteredItem != nil {

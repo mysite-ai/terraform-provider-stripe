@@ -52,6 +52,11 @@ func ResourceBillingMeter() *schema.Resource {
 					"hour",
 				}, false)),
 			},
+			"status": {
+				Type:        schema.TypeString,
+				Description: "The meter's status.",
+				Computed:    true,
+			},
 			"customer_mapping": {
 				Type:        schema.TypeList,
 				MaxItems:    1,
@@ -217,6 +222,9 @@ func resourceBillingMeterRead(ctx context.Context, d *schema.ResourceData, meta 
 		diags = append(diags, diag.FromErr(err)...)
 	}
 	if err := d.Set("event_time_window", billing_meter.EventTimeWindow); err != nil {
+		diags = append(diags, diag.FromErr(err)...)
+	}
+	if err := d.Set("status", billing_meter.Status); err != nil {
 		diags = append(diags, diag.FromErr(err)...)
 	}
 	if _, ok := d.GetOk("customer_mapping"); ok {

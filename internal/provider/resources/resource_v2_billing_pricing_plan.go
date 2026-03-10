@@ -63,6 +63,21 @@ func ResourceV2BillingPricingPlan() *schema.Resource {
 					"inclusive",
 				}, false)),
 			},
+			"active": {
+				Type:        schema.TypeBool,
+				Description: "Whether the PricingPlan is active.",
+				Computed:    true,
+			},
+			"latest_version": {
+				Type:        schema.TypeString,
+				Description: "The ID of the latest version of the PricingPlan.",
+				Computed:    true,
+			},
+			"live_version": {
+				Type:        schema.TypeString,
+				Description: "The ID of the live version of the PricingPlan.",
+				Computed:    true,
+			},
 		},
 
 		CreateContext: resourceV2BillingPricingPlanCreate,
@@ -145,6 +160,15 @@ func resourceV2BillingPricingPlanRead(ctx context.Context, d *schema.ResourceDat
 		diags = append(diags, diag.FromErr(err)...)
 	}
 	if err := d.Set("tax_behavior", v2_billing_pricing_plan.TaxBehavior); err != nil {
+		diags = append(diags, diag.FromErr(err)...)
+	}
+	if err := d.Set("active", v2_billing_pricing_plan.Active); err != nil {
+		diags = append(diags, diag.FromErr(err)...)
+	}
+	if err := d.Set("latest_version", v2_billing_pricing_plan.LatestVersion); err != nil {
+		diags = append(diags, diag.FromErr(err)...)
+	}
+	if err := d.Set("live_version", v2_billing_pricing_plan.LiveVersion); err != nil {
 		diags = append(diags, diag.FromErr(err)...)
 	}
 	return diags

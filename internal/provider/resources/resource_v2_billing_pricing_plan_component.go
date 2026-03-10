@@ -53,6 +53,16 @@ func ResourceV2BillingPricingPlanComponent() *schema.Resource {
 					"service_action",
 				}, false)),
 			},
+			"pricing_plan": {
+				Type:        schema.TypeString,
+				Description: "The ID of the Pricing Plan this component belongs to.",
+				Computed:    true,
+			},
+			"pricing_plan_version": {
+				Type:        schema.TypeString,
+				Description: "The ID of the Pricing Plan Version this component belongs to.",
+				Computed:    true,
+			},
 			"license_fee": {
 				Type:        schema.TypeList,
 				MaxItems:    1,
@@ -218,6 +228,12 @@ func resourceV2BillingPricingPlanComponentRead(ctx context.Context, d *schema.Re
 		diags = append(diags, diag.FromErr(err)...)
 	}
 	if err := d.Set("type", v2_billing_pricing_plan_component.Type); err != nil {
+		diags = append(diags, diag.FromErr(err)...)
+	}
+	if err := d.Set("pricing_plan", v2_billing_pricing_plan_component.PricingPlan); err != nil {
+		diags = append(diags, diag.FromErr(err)...)
+	}
+	if err := d.Set("pricing_plan_version", v2_billing_pricing_plan_component.PricingPlanVersion); err != nil {
 		diags = append(diags, diag.FromErr(err)...)
 	}
 	if _, ok := d.GetOk("license_fee"); ok {

@@ -167,6 +167,11 @@ func ResourcePrice() *schema.Resource {
 				Computed:    true,
 				ForceNew:    true,
 			},
+			"type": {
+				Type:        schema.TypeString,
+				Description: "One of `one_time` or `recurring` depending on whether the price is for a one-time purchase or a recurring (subscription) purchase.",
+				Computed:    true,
+			},
 			"custom_unit_amount": {
 				Type:        schema.TypeList,
 				MaxItems:    1,
@@ -568,6 +573,9 @@ func resourcePriceRead(ctx context.Context, d *schema.ResourceData, meta interfa
 		diags = append(diags, diag.FromErr(err)...)
 	}
 	if err := d.Set("unit_amount", price.UnitAmount); err != nil {
+		diags = append(diags, diag.FromErr(err)...)
+	}
+	if err := d.Set("type", price.Type); err != nil {
 		diags = append(diags, diag.FromErr(err)...)
 	}
 	if price.Product != nil {

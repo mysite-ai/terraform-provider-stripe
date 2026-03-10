@@ -71,6 +71,11 @@ func ResourcePromotionCode() *schema.Resource {
 				Computed:    true,
 				Elem:        &schema.Schema{Type: schema.TypeString},
 			},
+			"times_redeemed": {
+				Type:        schema.TypeInt,
+				Description: "Number of times this promotion code has been used.",
+				Computed:    true,
+			},
 			"promotion": {
 				Type:        schema.TypeList,
 				MaxItems:    1,
@@ -274,6 +279,9 @@ func resourcePromotionCodeRead(ctx context.Context, d *schema.ResourceData, meta
 		diags = append(diags, diag.FromErr(err)...)
 	}
 	if err := d.Set("metadata", promotion_code.Metadata); err != nil {
+		diags = append(diags, diag.FromErr(err)...)
+	}
+	if err := d.Set("times_redeemed", promotion_code.TimesRedeemed); err != nil {
 		diags = append(diags, diag.FromErr(err)...)
 	}
 	if promotion_code.Promotion != nil {

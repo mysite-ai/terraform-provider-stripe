@@ -108,6 +108,21 @@ func ResourceCoupon() *schema.Resource {
 				Computed:    true,
 				ForceNew:    true,
 			},
+			"times_redeemed": {
+				Type:        schema.TypeInt,
+				Description: "Number of times this coupon has been applied to a customer.",
+				Computed:    true,
+			},
+			"type": {
+				Type:        schema.TypeString,
+				Description: "One of `amount_off`, `percent_off`, or `script`. Describes the type of coupon logic used to calculate the discount.",
+				Computed:    true,
+			},
+			"valid": {
+				Type:        schema.TypeBool,
+				Description: "Taking account of the above properties, whether this coupon can still be applied to a customer.",
+				Computed:    true,
+			},
 			"applies_to": {
 				Type:        schema.TypeList,
 				MaxItems:    1,
@@ -303,6 +318,15 @@ func resourceCouponRead(ctx context.Context, d *schema.ResourceData, meta interf
 		diags = append(diags, diag.FromErr(err)...)
 	}
 	if err := d.Set("redeem_by", coupon.RedeemBy); err != nil {
+		diags = append(diags, diag.FromErr(err)...)
+	}
+	if err := d.Set("times_redeemed", coupon.TimesRedeemed); err != nil {
+		diags = append(diags, diag.FromErr(err)...)
+	}
+	if err := d.Set("type", coupon.Type); err != nil {
+		diags = append(diags, diag.FromErr(err)...)
+	}
+	if err := d.Set("valid", coupon.Valid); err != nil {
 		diags = append(diags, diag.FromErr(err)...)
 	}
 	if _, ok := d.GetOk("applies_to"); ok {

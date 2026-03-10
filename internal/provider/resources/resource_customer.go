@@ -111,6 +111,20 @@ func ResourceCustomer() *schema.Resource {
 				Computed:    true,
 				ForceNew:    true,
 			},
+			"currency": {
+				Type:        schema.TypeString,
+				Description: "Three-letter [ISO code for the currency](https://stripe.com/docs/currencies) the customer can be charged in for recurring billing purposes.",
+				Computed:    true,
+			},
+			"customer_account": {
+				Type:     schema.TypeString,
+				Computed: true,
+			},
+			"delinquent": {
+				Type:        schema.TypeBool,
+				Description: "Tracks the most recent state change on any invoice belonging to the customer. Paying an invoice or marking it uncollectible via the API will set this field to false. An automatic payment failure or passing the `invoice.due_date` will set this field to `true`. If an invoice becomes uncollectible by [dunning](https://stripe.com/docs/billing/automatic-collection), `delinquent` doesn't reset to `false`. If you care whether the customer has paid their most recent subscription invoice, use `subscription.status` instead. Paying or marking uncollectible any customer invoice regardless of whether it is the latest invoice for a subscription will always set this field to `false`.",
+				Computed:    true,
+			},
 			"address": {
 				Type:     schema.TypeList,
 				MaxItems: 1,
@@ -579,6 +593,15 @@ func resourceCustomerRead(ctx context.Context, d *schema.ResourceData, meta inte
 		diags = append(diags, diag.FromErr(err)...)
 	}
 	if err := d.Set("test_clock", customer.TestClock); err != nil {
+		diags = append(diags, diag.FromErr(err)...)
+	}
+	if err := d.Set("currency", customer.Currency); err != nil {
+		diags = append(diags, diag.FromErr(err)...)
+	}
+	if err := d.Set("customer_account", customer.CustomerAccount); err != nil {
+		diags = append(diags, diag.FromErr(err)...)
+	}
+	if err := d.Set("delinquent", customer.Delinquent); err != nil {
 		diags = append(diags, diag.FromErr(err)...)
 	}
 	if _, ok := d.GetOk("address"); ok {

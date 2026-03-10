@@ -98,6 +98,21 @@ func ResourceV2BillingLicenseFee() *schema.Resource {
 				Computed:         true,
 				DiffSuppressFunc: suppressDecimalDiff,
 			},
+			"active": {
+				Type:        schema.TypeBool,
+				Description: "Whether this License Fee is active. Inactive License Fees cannot be used in new activations or be modified.",
+				Computed:    true,
+			},
+			"latest_version": {
+				Type:        schema.TypeString,
+				Description: "The ID of the license fee's most recently created version.",
+				Computed:    true,
+			},
+			"live_version": {
+				Type:        schema.TypeString,
+				Description: "The ID of the License Fee Version that will be used by all subscriptions when no specific version is specified.",
+				Computed:    true,
+			},
 			"tiers": {
 				Type:        schema.TypeList,
 				Optional:    true,
@@ -252,6 +267,15 @@ func resourceV2BillingLicenseFeeRead(ctx context.Context, d *schema.ResourceData
 		diags = append(diags, diag.FromErr(err)...)
 	}
 	if err := d.Set("unit_amount", normalizeDecimalString(v2_billing_license_fee.UnitAmount)); err != nil {
+		diags = append(diags, diag.FromErr(err)...)
+	}
+	if err := d.Set("active", v2_billing_license_fee.Active); err != nil {
+		diags = append(diags, diag.FromErr(err)...)
+	}
+	if err := d.Set("latest_version", v2_billing_license_fee.LatestVersion); err != nil {
+		diags = append(diags, diag.FromErr(err)...)
+	}
+	if err := d.Set("live_version", v2_billing_license_fee.LiveVersion); err != nil {
 		diags = append(diags, diag.FromErr(err)...)
 	}
 	if v2_billing_license_fee.LicensedItem != nil {

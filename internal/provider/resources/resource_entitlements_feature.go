@@ -40,6 +40,11 @@ func ResourceEntitlementsFeature() *schema.Resource {
 				Description: "The feature's name, for your own purpose, not meant to be displayable to the customer.",
 				Required:    true,
 			},
+			"active": {
+				Type:        schema.TypeBool,
+				Description: "Inactive features cannot be attached to new products and will not be returned from the features list endpoint.",
+				Computed:    true,
+			},
 		},
 
 		CreateContext: resourceEntitlementsFeatureCreate,
@@ -104,6 +109,9 @@ func resourceEntitlementsFeatureRead(ctx context.Context, d *schema.ResourceData
 		diags = append(diags, diag.FromErr(err)...)
 	}
 	if err := d.Set("name", entitlements_feature.Name); err != nil {
+		diags = append(diags, diag.FromErr(err)...)
+	}
+	if err := d.Set("active", entitlements_feature.Active); err != nil {
 		diags = append(diags, diag.FromErr(err)...)
 	}
 	return diags

@@ -64,6 +64,11 @@ func ResourceShippingRate() *schema.Resource {
 					"fixed_amount",
 				}, false)),
 			},
+			"active": {
+				Type:        schema.TypeBool,
+				Description: "Whether the shipping rate can be used for new purchases. Defaults to `true`.",
+				Computed:    true,
+			},
 			"delivery_estimate": {
 				Type:        schema.TypeList,
 				MaxItems:    1,
@@ -306,6 +311,9 @@ func resourceShippingRateRead(ctx context.Context, d *schema.ResourceData, meta 
 		diags = append(diags, diag.FromErr(err)...)
 	}
 	if err := d.Set("type", shipping_rate.Type); err != nil {
+		diags = append(diags, diag.FromErr(err)...)
+	}
+	if err := d.Set("active", shipping_rate.Active); err != nil {
 		diags = append(diags, diag.FromErr(err)...)
 	}
 	if shipping_rate.TaxCode != nil {

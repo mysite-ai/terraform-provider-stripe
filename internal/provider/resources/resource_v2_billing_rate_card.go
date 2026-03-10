@@ -75,6 +75,21 @@ func ResourceV2BillingRateCard() *schema.Resource {
 					"inclusive",
 				}, false)),
 			},
+			"active": {
+				Type:        schema.TypeBool,
+				Description: "Whether this RateCard is active. Inactive RateCards cannot be used in new activations or have new rates added.",
+				Computed:    true,
+			},
+			"latest_version": {
+				Type:        schema.TypeString,
+				Description: "The ID of this rate card's most recently created version.",
+				Computed:    true,
+			},
+			"live_version": {
+				Type:        schema.TypeString,
+				Description: "The ID of the Rate Card Version that will be used by all subscriptions when no specific version is specified.",
+				Computed:    true,
+			},
 		},
 
 		CreateContext: resourceV2BillingRateCardCreate,
@@ -161,6 +176,15 @@ func resourceV2BillingRateCardRead(ctx context.Context, d *schema.ResourceData, 
 		diags = append(diags, diag.FromErr(err)...)
 	}
 	if err := d.Set("tax_behavior", v2_billing_rate_card.TaxBehavior); err != nil {
+		diags = append(diags, diag.FromErr(err)...)
+	}
+	if err := d.Set("active", v2_billing_rate_card.Active); err != nil {
+		diags = append(diags, diag.FromErr(err)...)
+	}
+	if err := d.Set("latest_version", v2_billing_rate_card.LatestVersion); err != nil {
+		diags = append(diags, diag.FromErr(err)...)
+	}
+	if err := d.Set("live_version", v2_billing_rate_card.LiveVersion); err != nil {
 		diags = append(diags, diag.FromErr(err)...)
 	}
 	return diags

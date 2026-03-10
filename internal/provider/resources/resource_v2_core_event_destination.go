@@ -82,6 +82,11 @@ func ResourceV2CoreEventDestination() *schema.Resource {
 					"webhook_endpoint",
 				}, false)),
 			},
+			"status": {
+				Type:        schema.TypeString,
+				Description: "Status. It can be set to either enabled or disabled.",
+				Computed:    true,
+			},
 			"amazon_eventbridge": {
 				Type:        schema.TypeList,
 				MaxItems:    1,
@@ -252,6 +257,9 @@ func resourceV2CoreEventDestinationRead(ctx context.Context, d *schema.ResourceD
 		diags = append(diags, diag.FromErr(err)...)
 	}
 	if err := d.Set("type", v2_core_event_destination.Type); err != nil {
+		diags = append(diags, diag.FromErr(err)...)
+	}
+	if err := d.Set("status", v2_core_event_destination.Status); err != nil {
 		diags = append(diags, diag.FromErr(err)...)
 	}
 	if _, ok := d.GetOk("amazon_eventbridge"); ok {

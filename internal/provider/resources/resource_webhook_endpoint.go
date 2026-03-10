@@ -179,11 +179,21 @@ func ResourceWebhookEndpoint() *schema.Resource {
 				Description: "The URL of the webhook endpoint.",
 				Required:    true,
 			},
+			"application": {
+				Type:        schema.TypeString,
+				Description: "The ID of the associated Connect application.",
+				Computed:    true,
+			},
 			"secret": {
 				Type:        schema.TypeString,
 				Description: "The endpoint's secret, used to generate [webhook signatures](https://docs.stripe.com/webhooks/signatures). Only returned at creation.",
 				Computed:    true,
 				Sensitive:   true,
+			},
+			"status": {
+				Type:        schema.TypeString,
+				Description: "The status of the webhook. It can be `enabled` or `disabled`.",
+				Computed:    true,
 			},
 		},
 
@@ -275,6 +285,12 @@ func resourceWebhookEndpointRead(ctx context.Context, d *schema.ResourceData, me
 		diags = append(diags, diag.FromErr(err)...)
 	}
 	if err := d.Set("url", webhook_endpoint.URL); err != nil {
+		diags = append(diags, diag.FromErr(err)...)
+	}
+	if err := d.Set("application", webhook_endpoint.Application); err != nil {
+		diags = append(diags, diag.FromErr(err)...)
+	}
+	if err := d.Set("status", webhook_endpoint.Status); err != nil {
 		diags = append(diags, diag.FromErr(err)...)
 	}
 	return diags
