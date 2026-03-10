@@ -179,6 +179,12 @@ func ResourceWebhookEndpoint() *schema.Resource {
 				Description: "The URL of the webhook endpoint.",
 				Required:    true,
 			},
+			"secret": {
+				Type:        schema.TypeString,
+				Description: "The endpoint's secret, used to generate [webhook signatures](https://docs.stripe.com/webhooks/signatures). Only returned at creation.",
+				Computed:    true,
+				Sensitive:   true,
+			},
 		},
 
 		CreateContext: resourceWebhookEndpointCreate,
@@ -229,7 +235,12 @@ func resourceWebhookEndpointCreate(ctx context.Context, d *schema.ResourceData, 
 	}
 
 	d.SetId(webhook_endpoint.ID)
-	return resourceWebhookEndpointRead(ctx, d, meta)
+	diags := resourceWebhookEndpointRead(ctx, d, meta)
+
+	if err := d.Set("secret", webhook_endpoint.Secret); err != nil {
+		diags = append(diags, diag.FromErr(err)...)
+	}
+	return diags
 }
 
 func resourceWebhookEndpointRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {

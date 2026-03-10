@@ -299,3 +299,6 @@ output "meter_event_name" {
 
 This configuration creates approximately 15 Stripe resources with correct dependencies and relationships.
 
+## Contributing
+
+Thanks for your interest in the Stripe Terraform Provider! This repository is automatically generated from Stripe's internal tooling. If you've found a bug or have a feature request, open an issue and we'll incorporate the changes through our generator.
