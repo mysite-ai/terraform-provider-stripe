@@ -99,6 +99,21 @@ func ResourceTaxRate() *schema.Resource {
 					"vat",
 				}, false)),
 			},
+			"effective_percentage": {
+				Type:        schema.TypeFloat,
+				Description: "Actual/effective tax rate percentage out of 100. For tax calculations with automatic_tax[enabled]=true, this percentage reflects the rate actually used to calculate tax based on the product's taxability and whether the user is registered to collect taxes in the corresponding jurisdiction.",
+				Computed:    true,
+			},
+			"jurisdiction_level": {
+				Type:        schema.TypeString,
+				Description: "The level of the jurisdiction that imposes this tax rate. Will be `null` for manually defined tax rates.",
+				Computed:    true,
+			},
+			"rate_type": {
+				Type:        schema.TypeString,
+				Description: "Indicates the type of tax rate applied to the taxable amount. This value can be `null` when no tax applies to the location. This field is only present for TaxRates created by Stripe Tax.",
+				Computed:    true,
+			},
 		},
 
 		CreateContext: resourceTaxRateCreate,
@@ -107,7 +122,7 @@ func ResourceTaxRate() *schema.Resource {
 		DeleteContext: resourceTaxRateDelete,
 
 		Importer: &schema.ResourceImporter{
-			StateContext: schema.ImportStatePassthroughContext,
+			StateContext: resourceTaxRateImportState,
 		},
 	}
 }
@@ -158,6 +173,8 @@ func resourceTaxRateCreate(ctx context.Context, d *schema.ResourceData, meta int
 
 func resourceTaxRateRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	var diags diag.Diagnostics
+	importing := ctx.Value("importing") != nil
+	_ = importing
 	tflog.Debug(ctx, "Reading stripe_tax_rate resource", map[string]interface{}{"id": d.Id()})
 	c := meta.(*stripe.Client)
 
@@ -201,6 +218,15 @@ func resourceTaxRateRead(ctx context.Context, d *schema.ResourceData, meta inter
 		diags = append(diags, diag.FromErr(err)...)
 	}
 	if err := d.Set("tax_type", tax_rate.TaxType); err != nil {
+		diags = append(diags, diag.FromErr(err)...)
+	}
+	if err := d.Set("effective_percentage", tax_rate.EffectivePercentage); err != nil {
+		diags = append(diags, diag.FromErr(err)...)
+	}
+	if err := d.Set("jurisdiction_level", tax_rate.JurisdictionLevel); err != nil {
+		diags = append(diags, diag.FromErr(err)...)
+	}
+	if err := d.Set("rate_type", tax_rate.RateType); err != nil {
 		diags = append(diags, diag.FromErr(err)...)
 	}
 	return diags
@@ -302,4 +328,13 @@ func resourceTaxRateDelete(ctx context.Context, d *schema.ResourceData, meta int
 	tflog.Info(ctx, "stripe_tax_rate marked as inactive successfully", map[string]interface{}{"id": d.Id()})
 	d.SetId("")
 	return nil
+}
+
+func resourceTaxRateImportState(ctx context.Context, d *schema.ResourceData, meta interface{}) ([]*schema.ResourceData, error) {
+	diags := resourceTaxRateRead(context.WithValue(ctx, "importing", true), d, meta)
+	if diags.HasError() {
+		return nil, fmt.Errorf("%s", diags[0].Summary)
+	}
+
+	return []*schema.ResourceData{d}, nil
 }

@@ -5,6 +5,7 @@ package resources
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
@@ -16,7 +17,7 @@ import (
 // ResourceV2BillingPricingPlanComponent returns the schema for the stripe_v2_billing_pricing_plan_component resource
 func ResourceV2BillingPricingPlanComponent() *schema.Resource {
 	return &schema.Resource{
-		Description: "Manages a stripe_v2_billing_pricing_plan_component resource in Stripe.",
+		Description: "A Pricing Plan Component represents an individual billing element within a Pricing Plan. Components can be Rate Cards for usage-based charges, License Fees for recurring fixed charges, or Service Actions for recurring credit grants. Each component is associated with a specific version of the Pricing Plan and defines one aspect of how customers are billed.",
 
 		Schema: map[string]*schema.Schema{
 			"id": {
@@ -53,6 +54,16 @@ func ResourceV2BillingPricingPlanComponent() *schema.Resource {
 					"service_action",
 				}, false)),
 			},
+			"pricing_plan": {
+				Type:        schema.TypeString,
+				Description: "The ID of the Pricing Plan this component belongs to.",
+				Computed:    true,
+			},
+			"pricing_plan_version": {
+				Type:        schema.TypeString,
+				Description: "The ID of the Pricing Plan Version this component belongs to.",
+				Computed:    true,
+			},
 			"license_fee": {
 				Type:        schema.TypeList,
 				MaxItems:    1,
@@ -69,7 +80,7 @@ func ResourceV2BillingPricingPlanComponent() *schema.Resource {
 						},
 						"version": {
 							Type:        schema.TypeString,
-							Description: "The ID of the License Fee Version. Defaults to 'latest', if not specified.",
+							Description: "The version of the LicenseFee. Defaults to 'latest', if not specified.",
 							Optional:    true,
 							Computed:    true,
 							ForceNew:    true,
@@ -93,7 +104,7 @@ func ResourceV2BillingPricingPlanComponent() *schema.Resource {
 						},
 						"version": {
 							Type:        schema.TypeString,
-							Description: "The ID of the Rate Card Version. Defaults to 'latest', if not specified.",
+							Description: "The version of the RateCard. Defaults to 'latest', if not specified.",
 							Optional:    true,
 							Computed:    true,
 							ForceNew:    true,
@@ -126,7 +137,7 @@ func ResourceV2BillingPricingPlanComponent() *schema.Resource {
 		DeleteContext: resourceV2BillingPricingPlanComponentDelete,
 
 		Importer: &schema.ResourceImporter{
-			StateContext: schema.ImportStatePassthroughContext,
+			StateContext: resourceV2BillingPricingPlanComponentImportState,
 		},
 	}
 }
@@ -191,6 +202,8 @@ func resourceV2BillingPricingPlanComponentCreate(ctx context.Context, d *schema.
 
 func resourceV2BillingPricingPlanComponentRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	var diags diag.Diagnostics
+	importing := ctx.Value("importing") != nil
+	_ = importing
 	tflog.Debug(ctx, "Reading stripe_v2_billing_pricing_plan_component resource", map[string]interface{}{"id": d.Id()})
 	c := meta.(*stripe.Client)
 
@@ -220,9 +233,16 @@ func resourceV2BillingPricingPlanComponentRead(ctx context.Context, d *schema.Re
 	if err := d.Set("type", v2_billing_pricing_plan_component.Type); err != nil {
 		diags = append(diags, diag.FromErr(err)...)
 	}
-	if _, ok := d.GetOk("license_fee"); ok {
+	if err := d.Set("pricing_plan", v2_billing_pricing_plan_component.PricingPlan); err != nil {
+		diags = append(diags, diag.FromErr(err)...)
+	}
+	if err := d.Set("pricing_plan_version", v2_billing_pricing_plan_component.PricingPlanVersion); err != nil {
+		diags = append(diags, diag.FromErr(err)...)
+	}
+	if _, ok := d.GetOk("license_fee"); importing || ok {
 		if v2_billing_pricing_plan_component.LicenseFee != nil {
 			nestedData := make(map[string]interface{})
+			nestedData["id"] = v2_billing_pricing_plan_component.LicenseFee.ID
 			nestedData["version"] = v2_billing_pricing_plan_component.LicenseFee.Version
 			if len(nestedData) > 0 {
 				if err := d.Set("license_fee", []interface{}{nestedData}); err != nil {
@@ -231,9 +251,10 @@ func resourceV2BillingPricingPlanComponentRead(ctx context.Context, d *schema.Re
 			}
 		}
 	}
-	if _, ok := d.GetOk("rate_card"); ok {
+	if _, ok := d.GetOk("rate_card"); importing || ok {
 		if v2_billing_pricing_plan_component.RateCard != nil {
 			nestedData := make(map[string]interface{})
+			nestedData["id"] = v2_billing_pricing_plan_component.RateCard.ID
 			nestedData["version"] = v2_billing_pricing_plan_component.RateCard.Version
 			if len(nestedData) > 0 {
 				if err := d.Set("rate_card", []interface{}{nestedData}); err != nil {
@@ -242,9 +263,10 @@ func resourceV2BillingPricingPlanComponentRead(ctx context.Context, d *schema.Re
 			}
 		}
 	}
-	if _, ok := d.GetOk("service_action"); ok {
+	if _, ok := d.GetOk("service_action"); importing || ok {
 		if v2_billing_pricing_plan_component.ServiceAction != nil {
 			nestedData := make(map[string]interface{})
+			nestedData["id"] = v2_billing_pricing_plan_component.ServiceAction.ID
 			if len(nestedData) > 0 {
 				if err := d.Set("service_action", []interface{}{nestedData}); err != nil {
 					diags = append(diags, diag.FromErr(err)...)
@@ -327,4 +349,21 @@ func resourceV2BillingPricingPlanComponentDelete(ctx context.Context, d *schema.
 
 	d.SetId("")
 	return nil
+}
+
+func resourceV2BillingPricingPlanComponentImportState(ctx context.Context, d *schema.ResourceData, meta interface{}) ([]*schema.ResourceData, error) {
+	parts := strings.SplitN(d.Id(), "/", 2)
+	if len(parts) != 2 {
+		return nil, fmt.Errorf("import ID must be {pricing_plan_id}/{id}, got: %s", d.Id())
+	}
+
+	d.Set("pricing_plan_id", parts[0])
+	d.SetId(parts[1])
+
+	diags := resourceV2BillingPricingPlanComponentRead(context.WithValue(ctx, "importing", true), d, meta)
+	if diags.HasError() {
+		return nil, fmt.Errorf("%s", diags[0].Summary)
+	}
+
+	return []*schema.ResourceData{d}, nil
 }

@@ -220,7 +220,7 @@ resource "stripe_v2_billing_service_action" "credit_grant" {
       
       monetary {
         currency = var.currency
-        amount   = var.credit_grant.amount
+        value    = var.credit_grant.amount
       }
     }
     

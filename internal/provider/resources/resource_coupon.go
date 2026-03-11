@@ -108,6 +108,21 @@ func ResourceCoupon() *schema.Resource {
 				Computed:    true,
 				ForceNew:    true,
 			},
+			"times_redeemed": {
+				Type:        schema.TypeInt,
+				Description: "Number of times this coupon has been applied to a customer.",
+				Computed:    true,
+			},
+			"type": {
+				Type:        schema.TypeString,
+				Description: "One of `amount_off`, `percent_off`, or `script`. Describes the type of coupon logic used to calculate the discount.",
+				Computed:    true,
+			},
+			"valid": {
+				Type:        schema.TypeBool,
+				Description: "Taking account of the above properties, whether this coupon can still be applied to a customer.",
+				Computed:    true,
+			},
 			"applies_to": {
 				Type:        schema.TypeList,
 				MaxItems:    1,
@@ -158,7 +173,7 @@ func ResourceCoupon() *schema.Resource {
 		DeleteContext: resourceCouponDelete,
 
 		Importer: &schema.ResourceImporter{
-			StateContext: schema.ImportStatePassthroughContext,
+			StateContext: resourceCouponImportState,
 		},
 	}
 }
@@ -246,6 +261,8 @@ func resourceCouponCreate(ctx context.Context, d *schema.ResourceData, meta inte
 
 func resourceCouponRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	var diags diag.Diagnostics
+	importing := ctx.Value("importing") != nil
+	_ = importing
 	tflog.Debug(ctx, "Reading stripe_coupon resource", map[string]interface{}{"id": d.Id()})
 	c := meta.(*stripe.Client)
 
@@ -305,7 +322,16 @@ func resourceCouponRead(ctx context.Context, d *schema.ResourceData, meta interf
 	if err := d.Set("redeem_by", coupon.RedeemBy); err != nil {
 		diags = append(diags, diag.FromErr(err)...)
 	}
-	if _, ok := d.GetOk("applies_to"); ok {
+	if err := d.Set("times_redeemed", coupon.TimesRedeemed); err != nil {
+		diags = append(diags, diag.FromErr(err)...)
+	}
+	if err := d.Set("type", coupon.Type); err != nil {
+		diags = append(diags, diag.FromErr(err)...)
+	}
+	if err := d.Set("valid", coupon.Valid); err != nil {
+		diags = append(diags, diag.FromErr(err)...)
+	}
+	if _, ok := d.GetOk("applies_to"); importing || ok {
 		if coupon.AppliesTo != nil {
 			nestedData := make(map[string]interface{})
 			if len(nestedData) > 0 {
@@ -315,7 +341,7 @@ func resourceCouponRead(ctx context.Context, d *schema.ResourceData, meta interf
 			}
 		}
 	}
-	if _, ok := d.GetOk("script"); ok {
+	if _, ok := d.GetOk("script"); importing || ok {
 		if coupon.Script != nil {
 			nestedData := make(map[string]interface{})
 			nestedData["display_name"] = coupon.Script.DisplayName
@@ -411,4 +437,13 @@ func resourceCouponDelete(ctx context.Context, d *schema.ResourceData, meta inte
 
 	d.SetId("")
 	return nil
+}
+
+func resourceCouponImportState(ctx context.Context, d *schema.ResourceData, meta interface{}) ([]*schema.ResourceData, error) {
+	diags := resourceCouponRead(context.WithValue(ctx, "importing", true), d, meta)
+	if diags.HasError() {
+		return nil, fmt.Errorf("%s", diags[0].Summary)
+	}
+
+	return []*schema.ResourceData{d}, nil
 }

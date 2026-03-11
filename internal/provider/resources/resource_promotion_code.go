@@ -71,6 +71,11 @@ func ResourcePromotionCode() *schema.Resource {
 				Computed:    true,
 				Elem:        &schema.Schema{Type: schema.TypeString},
 			},
+			"times_redeemed": {
+				Type:        schema.TypeInt,
+				Description: "Number of times this promotion code has been used.",
+				Computed:    true,
+			},
 			"promotion": {
 				Type:        schema.TypeList,
 				MaxItems:    1,
@@ -155,7 +160,7 @@ func ResourcePromotionCode() *schema.Resource {
 		DeleteContext: resourcePromotionCodeDelete,
 
 		Importer: &schema.ResourceImporter{
-			StateContext: schema.ImportStatePassthroughContext,
+			StateContext: resourcePromotionCodeImportState,
 		},
 	}
 }
@@ -240,6 +245,8 @@ func resourcePromotionCodeCreate(ctx context.Context, d *schema.ResourceData, me
 
 func resourcePromotionCodeRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	var diags diag.Diagnostics
+	importing := ctx.Value("importing") != nil
+	_ = importing
 	tflog.Debug(ctx, "Reading stripe_promotion_code resource", map[string]interface{}{"id": d.Id()})
 	c := meta.(*stripe.Client)
 
@@ -276,6 +283,9 @@ func resourcePromotionCodeRead(ctx context.Context, d *schema.ResourceData, meta
 	if err := d.Set("metadata", promotion_code.Metadata); err != nil {
 		diags = append(diags, diag.FromErr(err)...)
 	}
+	if err := d.Set("times_redeemed", promotion_code.TimesRedeemed); err != nil {
+		diags = append(diags, diag.FromErr(err)...)
+	}
 	if promotion_code.Promotion != nil {
 		nestedData := make(map[string]interface{})
 		if promotion_code.Promotion.Coupon != nil {
@@ -288,7 +298,7 @@ func resourcePromotionCodeRead(ctx context.Context, d *schema.ResourceData, meta
 			}
 		}
 	}
-	if _, ok := d.GetOk("restrictions"); ok {
+	if _, ok := d.GetOk("restrictions"); importing || ok {
 		if promotion_code.Restrictions != nil {
 			nestedData := make(map[string]interface{})
 			if promotion_code.Restrictions.CurrencyOptions != nil && len(promotion_code.Restrictions.CurrencyOptions) > 0 {
@@ -408,4 +418,13 @@ func resourcePromotionCodeDelete(ctx context.Context, d *schema.ResourceData, me
 	tflog.Info(ctx, "stripe_promotion_code marked as inactive successfully", map[string]interface{}{"id": d.Id()})
 	d.SetId("")
 	return nil
+}
+
+func resourcePromotionCodeImportState(ctx context.Context, d *schema.ResourceData, meta interface{}) ([]*schema.ResourceData, error) {
+	diags := resourcePromotionCodeRead(context.WithValue(ctx, "importing", true), d, meta)
+	if diags.HasError() {
+		return nil, fmt.Errorf("%s", diags[0].Summary)
+	}
+
+	return []*schema.ResourceData{d}, nil
 }

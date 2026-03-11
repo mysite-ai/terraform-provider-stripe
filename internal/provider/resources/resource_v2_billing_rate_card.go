@@ -75,6 +75,21 @@ func ResourceV2BillingRateCard() *schema.Resource {
 					"inclusive",
 				}, false)),
 			},
+			"active": {
+				Type:        schema.TypeBool,
+				Description: "Whether this RateCard is active. Inactive RateCards cannot be used in new activations or have new rates added.",
+				Computed:    true,
+			},
+			"latest_version": {
+				Type:        schema.TypeString,
+				Description: "The ID of this rate card's most recently created version.",
+				Computed:    true,
+			},
+			"live_version": {
+				Type:        schema.TypeString,
+				Description: "The ID of the Rate Card Version that will be used by all subscriptions when no specific version is specified.",
+				Computed:    true,
+			},
 		},
 
 		CreateContext: resourceV2BillingRateCardCreate,
@@ -83,7 +98,7 @@ func ResourceV2BillingRateCard() *schema.Resource {
 		DeleteContext: resourceV2BillingRateCardDelete,
 
 		Importer: &schema.ResourceImporter{
-			StateContext: schema.ImportStatePassthroughContext,
+			StateContext: resourceV2BillingRateCardImportState,
 		},
 	}
 }
@@ -127,6 +142,8 @@ func resourceV2BillingRateCardCreate(ctx context.Context, d *schema.ResourceData
 
 func resourceV2BillingRateCardRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	var diags diag.Diagnostics
+	importing := ctx.Value("importing") != nil
+	_ = importing
 	tflog.Debug(ctx, "Reading stripe_v2_billing_rate_card resource", map[string]interface{}{"id": d.Id()})
 	c := meta.(*stripe.Client)
 
@@ -161,6 +178,15 @@ func resourceV2BillingRateCardRead(ctx context.Context, d *schema.ResourceData, 
 		diags = append(diags, diag.FromErr(err)...)
 	}
 	if err := d.Set("tax_behavior", v2_billing_rate_card.TaxBehavior); err != nil {
+		diags = append(diags, diag.FromErr(err)...)
+	}
+	if err := d.Set("active", v2_billing_rate_card.Active); err != nil {
+		diags = append(diags, diag.FromErr(err)...)
+	}
+	if err := d.Set("latest_version", v2_billing_rate_card.LatestVersion); err != nil {
+		diags = append(diags, diag.FromErr(err)...)
+	}
+	if err := d.Set("live_version", v2_billing_rate_card.LiveVersion); err != nil {
 		diags = append(diags, diag.FromErr(err)...)
 	}
 	return diags
@@ -230,4 +256,13 @@ func resourceV2BillingRateCardDelete(ctx context.Context, d *schema.ResourceData
 		map[string]interface{}{"id": d.Id()})
 	d.SetId("")
 	return nil
+}
+
+func resourceV2BillingRateCardImportState(ctx context.Context, d *schema.ResourceData, meta interface{}) ([]*schema.ResourceData, error) {
+	diags := resourceV2BillingRateCardRead(context.WithValue(ctx, "importing", true), d, meta)
+	if diags.HasError() {
+		return nil, fmt.Errorf("%s", diags[0].Summary)
+	}
+
+	return []*schema.ResourceData{d}, nil
 }

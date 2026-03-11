@@ -16,7 +16,7 @@ import (
 // ResourceV2BillingLicenseFee returns the schema for the stripe_v2_billing_license_fee resource
 func ResourceV2BillingLicenseFee() *schema.Resource {
 	return &schema.Resource{
-		Description: "Manages a stripe_v2_billing_license_fee resource in Stripe.",
+		Description: "A License Fee represents a versioned recurring charge for a Licensed Item, typically used for seat-based or quantity-based pricing. Each License Fee defines the pricing structure (flat unit amount or tiered pricing) and service interval. After creating a License Fee, you can subscribe customers to it by creating a License Fee Subscription.",
 
 		Schema: map[string]*schema.Schema{
 			"id": {
@@ -98,6 +98,21 @@ func ResourceV2BillingLicenseFee() *schema.Resource {
 				Computed:         true,
 				DiffSuppressFunc: suppressDecimalDiff,
 			},
+			"active": {
+				Type:        schema.TypeBool,
+				Description: "Whether this License Fee is active. Inactive License Fees cannot be used in new activations or be modified.",
+				Computed:    true,
+			},
+			"latest_version": {
+				Type:        schema.TypeString,
+				Description: "The ID of the license fee's most recently created version.",
+				Computed:    true,
+			},
+			"live_version": {
+				Type:        schema.TypeString,
+				Description: "The ID of the License Fee Version that will be used by all subscriptions when no specific version is specified.",
+				Computed:    true,
+			},
 			"tiers": {
 				Type:        schema.TypeList,
 				Optional:    true,
@@ -138,7 +153,7 @@ func ResourceV2BillingLicenseFee() *schema.Resource {
 		DeleteContext: resourceV2BillingLicenseFeeDelete,
 
 		Importer: &schema.ResourceImporter{
-			StateContext: schema.ImportStatePassthroughContext,
+			StateContext: resourceV2BillingLicenseFeeImportState,
 		},
 	}
 }
@@ -212,6 +227,8 @@ func resourceV2BillingLicenseFeeCreate(ctx context.Context, d *schema.ResourceDa
 
 func resourceV2BillingLicenseFeeRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	var diags diag.Diagnostics
+	importing := ctx.Value("importing") != nil
+	_ = importing
 	tflog.Debug(ctx, "Reading stripe_v2_billing_license_fee resource", map[string]interface{}{"id": d.Id()})
 	c := meta.(*stripe.Client)
 
@@ -254,12 +271,21 @@ func resourceV2BillingLicenseFeeRead(ctx context.Context, d *schema.ResourceData
 	if err := d.Set("unit_amount", normalizeDecimalString(v2_billing_license_fee.UnitAmount)); err != nil {
 		diags = append(diags, diag.FromErr(err)...)
 	}
+	if err := d.Set("active", v2_billing_license_fee.Active); err != nil {
+		diags = append(diags, diag.FromErr(err)...)
+	}
+	if err := d.Set("latest_version", v2_billing_license_fee.LatestVersion); err != nil {
+		diags = append(diags, diag.FromErr(err)...)
+	}
+	if err := d.Set("live_version", v2_billing_license_fee.LiveVersion); err != nil {
+		diags = append(diags, diag.FromErr(err)...)
+	}
 	if v2_billing_license_fee.LicensedItem != nil {
 		if err := d.Set("licensed_item", v2_billing_license_fee.LicensedItem.ID); err != nil {
 			diags = append(diags, diag.FromErr(err)...)
 		}
 	}
-	if _, ok := d.GetOk("tiers"); ok {
+	if _, ok := d.GetOk("tiers"); importing || ok {
 		if v2_billing_license_fee.Tiers != nil && len(v2_billing_license_fee.Tiers) > 0 {
 			itemsData := make([]interface{}, len(v2_billing_license_fee.Tiers))
 			for i, item := range v2_billing_license_fee.Tiers {
@@ -382,4 +408,13 @@ func resourceV2BillingLicenseFeeDelete(ctx context.Context, d *schema.ResourceDa
 		map[string]interface{}{"id": d.Id()})
 	d.SetId("")
 	return nil
+}
+
+func resourceV2BillingLicenseFeeImportState(ctx context.Context, d *schema.ResourceData, meta interface{}) ([]*schema.ResourceData, error) {
+	diags := resourceV2BillingLicenseFeeRead(context.WithValue(ctx, "importing", true), d, meta)
+	if diags.HasError() {
+		return nil, fmt.Errorf("%s", diags[0].Summary)
+	}
+
+	return []*schema.ResourceData{d}, nil
 }

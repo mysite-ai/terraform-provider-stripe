@@ -87,7 +87,7 @@ func ResourceV2BillingMeteredItem() *schema.Resource {
 		DeleteContext: resourceV2BillingMeteredItemDelete,
 
 		Importer: &schema.ResourceImporter{
-			StateContext: schema.ImportStatePassthroughContext,
+			StateContext: resourceV2BillingMeteredItemImportState,
 		},
 	}
 }
@@ -151,6 +151,8 @@ func resourceV2BillingMeteredItemCreate(ctx context.Context, d *schema.ResourceD
 
 func resourceV2BillingMeteredItemRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	var diags diag.Diagnostics
+	importing := ctx.Value("importing") != nil
+	_ = importing
 	tflog.Debug(ctx, "Reading stripe_v2_billing_metered_item resource", map[string]interface{}{"id": d.Id()})
 	c := meta.(*stripe.Client)
 
@@ -186,7 +188,7 @@ func resourceV2BillingMeteredItemRead(ctx context.Context, d *schema.ResourceDat
 	if err := d.Set("unit_label", v2_billing_metered_item.UnitLabel); err != nil {
 		diags = append(diags, diag.FromErr(err)...)
 	}
-	if _, ok := d.GetOk("meter_segment_conditions"); ok {
+	if _, ok := d.GetOk("meter_segment_conditions"); importing || ok {
 		if v2_billing_metered_item.MeterSegmentConditions != nil && len(v2_billing_metered_item.MeterSegmentConditions) > 0 {
 			itemsData := make([]interface{}, len(v2_billing_metered_item.MeterSegmentConditions))
 			for i, item := range v2_billing_metered_item.MeterSegmentConditions {
@@ -276,4 +278,13 @@ func resourceV2BillingMeteredItemDelete(ctx context.Context, d *schema.ResourceD
 		map[string]interface{}{"id": d.Id()})
 	d.SetId("")
 	return nil
+}
+
+func resourceV2BillingMeteredItemImportState(ctx context.Context, d *schema.ResourceData, meta interface{}) ([]*schema.ResourceData, error) {
+	diags := resourceV2BillingMeteredItemRead(context.WithValue(ctx, "importing", true), d, meta)
+	if diags.HasError() {
+		return nil, fmt.Errorf("%s", diags[0].Summary)
+	}
+
+	return []*schema.ResourceData{d}, nil
 }

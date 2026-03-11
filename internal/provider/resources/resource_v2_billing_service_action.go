@@ -16,7 +16,7 @@ import (
 // ResourceV2BillingServiceAction returns the schema for the stripe_v2_billing_service_action resource
 func ResourceV2BillingServiceAction() *schema.Resource {
 	return &schema.Resource{
-		Description: "Manages a stripe_v2_billing_service_action resource in Stripe.",
+		Description: "Service Actions represent actions applied during service assessment periods, such as granting credits to a customer.",
 
 		Schema: map[string]*schema.Schema{
 			"id": {
@@ -98,15 +98,15 @@ func ResourceV2BillingServiceAction() *schema.Resource {
 										Description: "The monetary amount of the credit grant. Required if `type` is `monetary`.",
 										Elem: &schema.Resource{
 											Schema: map[string]*schema.Schema{
-												"amount": {
-													Type:        schema.TypeInt,
-													Description: "A non-negative integer representing how much to charge in the [smallest currency unit](https://docs.stripe.com/currencies#minor-units).",
-													Optional:    true,
-												},
 												"currency": {
 													Type:        schema.TypeString,
 													Description: "Three-letter [ISO currency code](https://www.iso.org/iso-4217-currency-codes.html), in lowercase. Must be a [supported currency](https://stripe.com/docs/currencies).",
-													Optional:    true,
+													Required:    true,
+												},
+												"value": {
+													Type:        schema.TypeInt,
+													Description: "A non-negative integer representing how much to charge in the [smallest currency unit](https://docs.stripe.com/currencies#minor-units).",
+													Required:    true,
 												},
 											},
 										},
@@ -209,7 +209,7 @@ func ResourceV2BillingServiceAction() *schema.Resource {
 		DeleteContext: resourceV2BillingServiceActionDelete,
 
 		Importer: &schema.ResourceImporter{
-			StateContext: schema.ImportStatePassthroughContext,
+			StateContext: resourceV2BillingServiceActionImportState,
 		},
 	}
 }
@@ -249,11 +249,11 @@ func resourceV2BillingServiceActionCreate(ctx context.Context, d *schema.Resourc
 			if v, ok := nestedData0["monetary"].([]interface{}); ok && len(v) > 0 {
 				nestedData1 := v[0].(map[string]interface{})
 				params.CreditGrant.Amount.Monetary = &stripe.V2BillingServiceActionCreateCreditGrantAmountMonetaryParams{}
-				if val, ok := nestedData1["amount"].(int); ok && val > 0 {
-					params.CreditGrant.Amount.Monetary.Value = stripe.Int64(int64(val))
-				}
 				if val, ok := nestedData1["currency"].(string); ok && val != "" {
 					params.CreditGrant.Amount.Monetary.Currency = stripe.String(val)
+				}
+				if val, ok := nestedData1["value"].(int); ok {
+					params.CreditGrant.Amount.Monetary.Value = stripe.Int64(int64(val))
 				}
 			}
 			if val, ok := nestedData0["type"].(string); ok && val != "" {
@@ -308,6 +308,8 @@ func resourceV2BillingServiceActionCreate(ctx context.Context, d *schema.Resourc
 
 func resourceV2BillingServiceActionRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	var diags diag.Diagnostics
+	importing := ctx.Value("importing") != nil
+	_ = importing
 	tflog.Debug(ctx, "Reading stripe_v2_billing_service_action resource", map[string]interface{}{"id": d.Id()})
 	c := meta.(*stripe.Client)
 
@@ -335,7 +337,7 @@ func resourceV2BillingServiceActionRead(ctx context.Context, d *schema.ResourceD
 	if err := d.Set("type", v2_billing_service_action.Type); err != nil {
 		diags = append(diags, diag.FromErr(err)...)
 	}
-	if _, ok := d.GetOk("credit_grant"); ok {
+	if _, ok := d.GetOk("credit_grant"); importing || ok {
 		if v2_billing_service_action.CreditGrant != nil {
 			nestedData := make(map[string]interface{})
 			if v2_billing_service_action.CreditGrant.Amount != nil {
@@ -348,10 +350,16 @@ func resourceV2BillingServiceActionRead(ctx context.Context, d *schema.ResourceD
 						if v2_billing_service_action.CreditGrant.Amount.CustomPricingUnit.CustomPricingUnitDetails.DisplayName != "" {
 							nestedData2["display_name"] = v2_billing_service_action.CreditGrant.Amount.CustomPricingUnit.CustomPricingUnitDetails.DisplayName
 						}
+						if v2_billing_service_action.CreditGrant.Amount.CustomPricingUnit.CustomPricingUnitDetails.ID != "" {
+							nestedData2["id"] = v2_billing_service_action.CreditGrant.Amount.CustomPricingUnit.CustomPricingUnitDetails.ID
+						}
 						if v2_billing_service_action.CreditGrant.Amount.CustomPricingUnit.CustomPricingUnitDetails.LookupKey != "" {
 							nestedData2["lookup_key"] = v2_billing_service_action.CreditGrant.Amount.CustomPricingUnit.CustomPricingUnitDetails.LookupKey
 						}
 						nestedData1["custom_pricing_unit_details"] = []interface{}{nestedData2}
+					}
+					if v2_billing_service_action.CreditGrant.Amount.CustomPricingUnit.ID != "" {
+						nestedData1["id"] = v2_billing_service_action.CreditGrant.Amount.CustomPricingUnit.ID
 					}
 					if v2_billing_service_action.CreditGrant.Amount.CustomPricingUnit.Value != "" {
 						nestedData1["value"] = normalizeDecimalString(v2_billing_service_action.CreditGrant.Amount.CustomPricingUnit.Value)
@@ -360,10 +368,10 @@ func resourceV2BillingServiceActionRead(ctx context.Context, d *schema.ResourceD
 				}
 				if v2_billing_service_action.CreditGrant.Amount.Monetary != nil {
 					nestedData1 := make(map[string]interface{})
-					nestedData1["amount"] = int(v2_billing_service_action.CreditGrant.Amount.Monetary.Value)
 					if v2_billing_service_action.CreditGrant.Amount.Monetary.Currency != "" {
 						nestedData1["currency"] = v2_billing_service_action.CreditGrant.Amount.Monetary.Currency
 					}
+					nestedData1["value"] = int(v2_billing_service_action.CreditGrant.Amount.Monetary.Value)
 					nestedData0["monetary"] = []interface{}{nestedData1}
 				}
 				if v2_billing_service_action.CreditGrant.Amount.Type != "" {
@@ -447,4 +455,13 @@ func resourceV2BillingServiceActionDelete(ctx context.Context, d *schema.Resourc
 		map[string]interface{}{"id": d.Id()})
 	d.SetId("")
 	return nil
+}
+
+func resourceV2BillingServiceActionImportState(ctx context.Context, d *schema.ResourceData, meta interface{}) ([]*schema.ResourceData, error) {
+	diags := resourceV2BillingServiceActionRead(context.WithValue(ctx, "importing", true), d, meta)
+	if diags.HasError() {
+		return nil, fmt.Errorf("%s", diags[0].Summary)
+	}
+
+	return []*schema.ResourceData{d}, nil
 }

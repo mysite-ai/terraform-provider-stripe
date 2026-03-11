@@ -179,11 +179,21 @@ func ResourceWebhookEndpoint() *schema.Resource {
 				Description: "The URL of the webhook endpoint.",
 				Required:    true,
 			},
+			"application": {
+				Type:        schema.TypeString,
+				Description: "The ID of the associated Connect application.",
+				Computed:    true,
+			},
 			"secret": {
 				Type:        schema.TypeString,
 				Description: "The endpoint's secret, used to generate [webhook signatures](https://docs.stripe.com/webhooks/signatures). Only returned at creation.",
 				Computed:    true,
 				Sensitive:   true,
+			},
+			"status": {
+				Type:        schema.TypeString,
+				Description: "The status of the webhook. It can be `enabled` or `disabled`.",
+				Computed:    true,
 			},
 		},
 
@@ -193,7 +203,7 @@ func ResourceWebhookEndpoint() *schema.Resource {
 		DeleteContext: resourceWebhookEndpointDelete,
 
 		Importer: &schema.ResourceImporter{
-			StateContext: schema.ImportStatePassthroughContext,
+			StateContext: resourceWebhookEndpointImportState,
 		},
 	}
 }
@@ -245,6 +255,8 @@ func resourceWebhookEndpointCreate(ctx context.Context, d *schema.ResourceData, 
 
 func resourceWebhookEndpointRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	var diags diag.Diagnostics
+	importing := ctx.Value("importing") != nil
+	_ = importing
 	tflog.Debug(ctx, "Reading stripe_webhook_endpoint resource", map[string]interface{}{"id": d.Id()})
 	c := meta.(*stripe.Client)
 
@@ -275,6 +287,12 @@ func resourceWebhookEndpointRead(ctx context.Context, d *schema.ResourceData, me
 		diags = append(diags, diag.FromErr(err)...)
 	}
 	if err := d.Set("url", webhook_endpoint.URL); err != nil {
+		diags = append(diags, diag.FromErr(err)...)
+	}
+	if err := d.Set("application", webhook_endpoint.Application); err != nil {
+		diags = append(diags, diag.FromErr(err)...)
+	}
+	if err := d.Set("status", webhook_endpoint.Status); err != nil {
 		diags = append(diags, diag.FromErr(err)...)
 	}
 	return diags
@@ -359,4 +377,13 @@ func resourceWebhookEndpointDelete(ctx context.Context, d *schema.ResourceData, 
 
 	d.SetId("")
 	return nil
+}
+
+func resourceWebhookEndpointImportState(ctx context.Context, d *schema.ResourceData, meta interface{}) ([]*schema.ResourceData, error) {
+	diags := resourceWebhookEndpointRead(context.WithValue(ctx, "importing", true), d, meta)
+	if diags.HasError() {
+		return nil, fmt.Errorf("%s", diags[0].Summary)
+	}
+
+	return []*schema.ResourceData{d}, nil
 }

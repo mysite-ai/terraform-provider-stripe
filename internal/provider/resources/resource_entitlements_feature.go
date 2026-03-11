@@ -40,6 +40,11 @@ func ResourceEntitlementsFeature() *schema.Resource {
 				Description: "The feature's name, for your own purpose, not meant to be displayable to the customer.",
 				Required:    true,
 			},
+			"active": {
+				Type:        schema.TypeBool,
+				Description: "Inactive features cannot be attached to new products and will not be returned from the features list endpoint.",
+				Computed:    true,
+			},
 		},
 
 		CreateContext: resourceEntitlementsFeatureCreate,
@@ -48,7 +53,7 @@ func ResourceEntitlementsFeature() *schema.Resource {
 		DeleteContext: resourceEntitlementsFeatureDelete,
 
 		Importer: &schema.ResourceImporter{
-			StateContext: schema.ImportStatePassthroughContext,
+			StateContext: resourceEntitlementsFeatureImportState,
 		},
 	}
 }
@@ -82,6 +87,8 @@ func resourceEntitlementsFeatureCreate(ctx context.Context, d *schema.ResourceDa
 
 func resourceEntitlementsFeatureRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	var diags diag.Diagnostics
+	importing := ctx.Value("importing") != nil
+	_ = importing
 	tflog.Debug(ctx, "Reading stripe_entitlements_feature resource", map[string]interface{}{"id": d.Id()})
 	c := meta.(*stripe.Client)
 
@@ -104,6 +111,9 @@ func resourceEntitlementsFeatureRead(ctx context.Context, d *schema.ResourceData
 		diags = append(diags, diag.FromErr(err)...)
 	}
 	if err := d.Set("name", entitlements_feature.Name); err != nil {
+		diags = append(diags, diag.FromErr(err)...)
+	}
+	if err := d.Set("active", entitlements_feature.Active); err != nil {
 		diags = append(diags, diag.FromErr(err)...)
 	}
 	return diags
@@ -168,4 +178,13 @@ func resourceEntitlementsFeatureDelete(ctx context.Context, d *schema.ResourceDa
 		map[string]interface{}{"id": d.Id()})
 	d.SetId("")
 	return nil
+}
+
+func resourceEntitlementsFeatureImportState(ctx context.Context, d *schema.ResourceData, meta interface{}) ([]*schema.ResourceData, error) {
+	diags := resourceEntitlementsFeatureRead(context.WithValue(ctx, "importing", true), d, meta)
+	if diags.HasError() {
+		return nil, fmt.Errorf("%s", diags[0].Summary)
+	}
+
+	return []*schema.ResourceData{d}, nil
 }

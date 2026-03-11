@@ -5,6 +5,7 @@ package resources
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
@@ -16,7 +17,7 @@ import (
 // ResourceV2BillingRateCardRate returns the schema for the stripe_v2_billing_rate_card_rate resource
 func ResourceV2BillingRateCardRate() *schema.Resource {
 	return &schema.Resource{
-		Description: "Manages a stripe_v2_billing_rate_card_rate resource in Stripe.",
+		Description: "A Rate Card Rate represents a single usage-based price within a Rate Card. Each rate binds to one Metered Item and defines the pricing structure for that item, including either a flat unit amount or tiered pricing. Rates support features like graduated or volume-based tiering, quantity transformations, and custom pricing units.",
 
 		Schema: map[string]*schema.Schema{
 			"id": {
@@ -40,13 +41,12 @@ func ResourceV2BillingRateCardRate() *schema.Resource {
 			"metered_item": {
 				Type:        schema.TypeString,
 				Description: "The Metered Item that this rate binds to.",
-				Optional:    true,
-				Computed:    true,
+				Required:    true,
 				ForceNew:    true,
 			},
 			"tiering_mode": {
 				Type:        schema.TypeString,
-				Description: "Defines whether the tiered price should be graduated or volume-based. In volume-based tiering, the maximum quantity within a period determines the per-unit price. In graduated tiering, the pricing changes as the quantity grows into new tiers. Can only be set if `tiers` is set.",
+				Description: "Defines whether the tiered price should be graduated or volume-based. In volume-based tiering, the maximum quantity within a period determines the per-unit price. In graduated tiering, the pricing changes as the quantity grows into new tiers. One of `unit_amount`, `tiers`, or `custom_pricing_unit_amount` is required.",
 				Optional:    true,
 				Computed:    true,
 				ForceNew:    true,
@@ -57,17 +57,27 @@ func ResourceV2BillingRateCardRate() *schema.Resource {
 			},
 			"unit_amount": {
 				Type:             schema.TypeString,
-				Description:      "The per-unit amount to be charged, represented as a decimal string in minor currency units with at most 12 decimal places. Cannot be set if `tiers` is provided.",
+				Description:      "The per-unit amount to be charged, represented as a decimal string in minor currency units with at most 12 decimal places. One of `unit_amount`, `tiers`, or `custom_pricing_unit_amount` is required.",
 				Optional:         true,
 				Computed:         true,
 				ForceNew:         true,
 				DiffSuppressFunc: suppressDecimalDiff,
 			},
+			"rate_card": {
+				Type:        schema.TypeString,
+				Description: "The ID of the Rate Card it belongs to.",
+				Computed:    true,
+			},
+			"rate_card_version": {
+				Type:        schema.TypeString,
+				Description: "The ID of the Rate Card Version it was created on.",
+				Computed:    true,
+			},
 			"tiers": {
 				Type:        schema.TypeList,
 				Optional:    true,
 				ForceNew:    true,
-				Description: "Each element represents a pricing tier. Cannot be set if `unit_amount` is provided.",
+				Description: "Each element represents a pricing tier. One of `unit_amount`, `tiers`, or `custom_pricing_unit_amount` is required.",
 				Elem: &schema.Resource{
 					Schema: map[string]*schema.Schema{
 						"flat_amount": {
@@ -103,7 +113,7 @@ func ResourceV2BillingRateCardRate() *schema.Resource {
 		DeleteContext: resourceV2BillingRateCardRateDelete,
 
 		Importer: &schema.ResourceImporter{
-			StateContext: schema.ImportStatePassthroughContext,
+			StateContext: resourceV2BillingRateCardRateImportState,
 		},
 	}
 }
@@ -165,6 +175,8 @@ func resourceV2BillingRateCardRateCreate(ctx context.Context, d *schema.Resource
 
 func resourceV2BillingRateCardRateRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	var diags diag.Diagnostics
+	importing := ctx.Value("importing") != nil
+	_ = importing
 	tflog.Debug(ctx, "Reading stripe_v2_billing_rate_card_rate resource", map[string]interface{}{"id": d.Id()})
 	c := meta.(*stripe.Client)
 
@@ -194,12 +206,18 @@ func resourceV2BillingRateCardRateRead(ctx context.Context, d *schema.ResourceDa
 	if err := d.Set("unit_amount", normalizeDecimalString(v2_billing_rate_card_rate.UnitAmount)); err != nil {
 		diags = append(diags, diag.FromErr(err)...)
 	}
+	if err := d.Set("rate_card", v2_billing_rate_card_rate.RateCard); err != nil {
+		diags = append(diags, diag.FromErr(err)...)
+	}
+	if err := d.Set("rate_card_version", v2_billing_rate_card_rate.RateCardVersion); err != nil {
+		diags = append(diags, diag.FromErr(err)...)
+	}
 	if v2_billing_rate_card_rate.MeteredItem != nil {
 		if err := d.Set("metered_item", v2_billing_rate_card_rate.MeteredItem.ID); err != nil {
 			diags = append(diags, diag.FromErr(err)...)
 		}
 	}
-	if _, ok := d.GetOk("tiers"); ok {
+	if _, ok := d.GetOk("tiers"); importing || ok {
 		if v2_billing_rate_card_rate.Tiers != nil && len(v2_billing_rate_card_rate.Tiers) > 0 {
 			itemsData := make([]interface{}, len(v2_billing_rate_card_rate.Tiers))
 			for i, item := range v2_billing_rate_card_rate.Tiers {
@@ -242,4 +260,21 @@ func resourceV2BillingRateCardRateDelete(ctx context.Context, d *schema.Resource
 
 	d.SetId("")
 	return nil
+}
+
+func resourceV2BillingRateCardRateImportState(ctx context.Context, d *schema.ResourceData, meta interface{}) ([]*schema.ResourceData, error) {
+	parts := strings.SplitN(d.Id(), "/", 2)
+	if len(parts) != 2 {
+		return nil, fmt.Errorf("import ID must be {rate_card_id}/{id}, got: %s", d.Id())
+	}
+
+	d.Set("rate_card_id", parts[0])
+	d.SetId(parts[1])
+
+	diags := resourceV2BillingRateCardRateRead(context.WithValue(ctx, "importing", true), d, meta)
+	if diags.HasError() {
+		return nil, fmt.Errorf("%s", diags[0].Summary)
+	}
+
+	return []*schema.ResourceData{d}, nil
 }

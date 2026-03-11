@@ -64,6 +64,11 @@ func ResourceShippingRate() *schema.Resource {
 					"fixed_amount",
 				}, false)),
 			},
+			"active": {
+				Type:        schema.TypeBool,
+				Description: "Whether the shipping rate can be used for new purchases. Defaults to `true`.",
+				Computed:    true,
+			},
 			"delivery_estimate": {
 				Type:        schema.TypeList,
 				MaxItems:    1,
@@ -188,7 +193,7 @@ func ResourceShippingRate() *schema.Resource {
 		DeleteContext: resourceShippingRateDelete,
 
 		Importer: &schema.ResourceImporter{
-			StateContext: schema.ImportStatePassthroughContext,
+			StateContext: resourceShippingRateImportState,
 		},
 	}
 }
@@ -281,6 +286,8 @@ func resourceShippingRateCreate(ctx context.Context, d *schema.ResourceData, met
 
 func resourceShippingRateRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	var diags diag.Diagnostics
+	importing := ctx.Value("importing") != nil
+	_ = importing
 	tflog.Debug(ctx, "Reading stripe_shipping_rate resource", map[string]interface{}{"id": d.Id()})
 	c := meta.(*stripe.Client)
 
@@ -308,12 +315,15 @@ func resourceShippingRateRead(ctx context.Context, d *schema.ResourceData, meta 
 	if err := d.Set("type", shipping_rate.Type); err != nil {
 		diags = append(diags, diag.FromErr(err)...)
 	}
+	if err := d.Set("active", shipping_rate.Active); err != nil {
+		diags = append(diags, diag.FromErr(err)...)
+	}
 	if shipping_rate.TaxCode != nil {
 		if err := d.Set("tax_code", shipping_rate.TaxCode.ID); err != nil {
 			diags = append(diags, diag.FromErr(err)...)
 		}
 	}
-	if _, ok := d.GetOk("delivery_estimate"); ok {
+	if _, ok := d.GetOk("delivery_estimate"); importing || ok {
 		if shipping_rate.DeliveryEstimate != nil {
 			nestedData := make(map[string]interface{})
 			if shipping_rate.DeliveryEstimate.Maximum != nil {
@@ -335,7 +345,7 @@ func resourceShippingRateRead(ctx context.Context, d *schema.ResourceData, meta 
 			}
 		}
 	}
-	if _, ok := d.GetOk("fixed_amount"); ok {
+	if _, ok := d.GetOk("fixed_amount"); importing || ok {
 		if shipping_rate.FixedAmount != nil {
 			nestedData := make(map[string]interface{})
 			nestedData["amount"] = int(shipping_rate.FixedAmount.Amount)
@@ -462,4 +472,13 @@ func resourceShippingRateDelete(ctx context.Context, d *schema.ResourceData, met
 	tflog.Info(ctx, "stripe_shipping_rate marked as inactive successfully", map[string]interface{}{"id": d.Id()})
 	d.SetId("")
 	return nil
+}
+
+func resourceShippingRateImportState(ctx context.Context, d *schema.ResourceData, meta interface{}) ([]*schema.ResourceData, error) {
+	diags := resourceShippingRateRead(context.WithValue(ctx, "importing", true), d, meta)
+	if diags.HasError() {
+		return nil, fmt.Errorf("%s", diags[0].Summary)
+	}
+
+	return []*schema.ResourceData{d}, nil
 }

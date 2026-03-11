@@ -16,7 +16,7 @@ import (
 // ResourceV2BillingPricingPlan returns the schema for the stripe_v2_billing_pricing_plan resource
 func ResourceV2BillingPricingPlan() *schema.Resource {
 	return &schema.Resource{
-		Description: "Manages a stripe_v2_billing_pricing_plan resource in Stripe.",
+		Description: "A Pricing Plan represents a bundled collection of billing components that define how customers are charged. Each plan can include multiple components such as Rate Cards for usage-based pricing, License Fees for recurring charges, and Service Actions for recurring credit grants. After creating a Pricing Plan, you can subscribe customers to it by creating a Pricing Plan Subscription.",
 
 		Schema: map[string]*schema.Schema{
 			"id": {
@@ -63,6 +63,21 @@ func ResourceV2BillingPricingPlan() *schema.Resource {
 					"inclusive",
 				}, false)),
 			},
+			"active": {
+				Type:        schema.TypeBool,
+				Description: "Whether the PricingPlan is active.",
+				Computed:    true,
+			},
+			"latest_version": {
+				Type:        schema.TypeString,
+				Description: "The ID of the latest version of the PricingPlan.",
+				Computed:    true,
+			},
+			"live_version": {
+				Type:        schema.TypeString,
+				Description: "The ID of the live version of the PricingPlan.",
+				Computed:    true,
+			},
 		},
 
 		CreateContext: resourceV2BillingPricingPlanCreate,
@@ -71,7 +86,7 @@ func ResourceV2BillingPricingPlan() *schema.Resource {
 		DeleteContext: resourceV2BillingPricingPlanDelete,
 
 		Importer: &schema.ResourceImporter{
-			StateContext: schema.ImportStatePassthroughContext,
+			StateContext: resourceV2BillingPricingPlanImportState,
 		},
 	}
 }
@@ -114,6 +129,8 @@ func resourceV2BillingPricingPlanCreate(ctx context.Context, d *schema.ResourceD
 
 func resourceV2BillingPricingPlanRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	var diags diag.Diagnostics
+	importing := ctx.Value("importing") != nil
+	_ = importing
 	tflog.Debug(ctx, "Reading stripe_v2_billing_pricing_plan resource", map[string]interface{}{"id": d.Id()})
 	c := meta.(*stripe.Client)
 
@@ -145,6 +162,15 @@ func resourceV2BillingPricingPlanRead(ctx context.Context, d *schema.ResourceDat
 		diags = append(diags, diag.FromErr(err)...)
 	}
 	if err := d.Set("tax_behavior", v2_billing_pricing_plan.TaxBehavior); err != nil {
+		diags = append(diags, diag.FromErr(err)...)
+	}
+	if err := d.Set("active", v2_billing_pricing_plan.Active); err != nil {
+		diags = append(diags, diag.FromErr(err)...)
+	}
+	if err := d.Set("latest_version", v2_billing_pricing_plan.LatestVersion); err != nil {
+		diags = append(diags, diag.FromErr(err)...)
+	}
+	if err := d.Set("live_version", v2_billing_pricing_plan.LiveVersion); err != nil {
 		diags = append(diags, diag.FromErr(err)...)
 	}
 	return diags
@@ -219,4 +245,13 @@ func resourceV2BillingPricingPlanDelete(ctx context.Context, d *schema.ResourceD
 		map[string]interface{}{"id": d.Id()})
 	d.SetId("")
 	return nil
+}
+
+func resourceV2BillingPricingPlanImportState(ctx context.Context, d *schema.ResourceData, meta interface{}) ([]*schema.ResourceData, error) {
+	diags := resourceV2BillingPricingPlanRead(context.WithValue(ctx, "importing", true), d, meta)
+	if diags.HasError() {
+		return nil, fmt.Errorf("%s", diags[0].Summary)
+	}
+
+	return []*schema.ResourceData{d}, nil
 }
