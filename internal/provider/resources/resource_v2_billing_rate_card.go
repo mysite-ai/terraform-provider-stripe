@@ -98,7 +98,7 @@ func ResourceV2BillingRateCard() *schema.Resource {
 		DeleteContext: resourceV2BillingRateCardDelete,
 
 		Importer: &schema.ResourceImporter{
-			StateContext: schema.ImportStatePassthroughContext,
+			StateContext: resourceV2BillingRateCardImportState,
 		},
 	}
 }
@@ -142,6 +142,8 @@ func resourceV2BillingRateCardCreate(ctx context.Context, d *schema.ResourceData
 
 func resourceV2BillingRateCardRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	var diags diag.Diagnostics
+	importing := ctx.Value("importing") != nil
+	_ = importing
 	tflog.Debug(ctx, "Reading stripe_v2_billing_rate_card resource", map[string]interface{}{"id": d.Id()})
 	c := meta.(*stripe.Client)
 
@@ -254,4 +256,13 @@ func resourceV2BillingRateCardDelete(ctx context.Context, d *schema.ResourceData
 		map[string]interface{}{"id": d.Id()})
 	d.SetId("")
 	return nil
+}
+
+func resourceV2BillingRateCardImportState(ctx context.Context, d *schema.ResourceData, meta interface{}) ([]*schema.ResourceData, error) {
+	diags := resourceV2BillingRateCardRead(context.WithValue(ctx, "importing", true), d, meta)
+	if diags.HasError() {
+		return nil, fmt.Errorf("%s", diags[0].Summary)
+	}
+
+	return []*schema.ResourceData{d}, nil
 }

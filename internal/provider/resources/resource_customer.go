@@ -353,7 +353,7 @@ func ResourceCustomer() *schema.Resource {
 		DeleteContext: resourceCustomerDelete,
 
 		Importer: &schema.ResourceImporter{
-			StateContext: schema.ImportStatePassthroughContext,
+			StateContext: resourceCustomerImportState,
 		},
 	}
 }
@@ -539,6 +539,8 @@ func resourceCustomerCreate(ctx context.Context, d *schema.ResourceData, meta in
 
 func resourceCustomerRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	var diags diag.Diagnostics
+	importing := ctx.Value("importing") != nil
+	_ = importing
 	tflog.Debug(ctx, "Reading stripe_customer resource", map[string]interface{}{"id": d.Id()})
 	c := meta.(*stripe.Client)
 
@@ -604,7 +606,7 @@ func resourceCustomerRead(ctx context.Context, d *schema.ResourceData, meta inte
 	if err := d.Set("delinquent", customer.Delinquent); err != nil {
 		diags = append(diags, diag.FromErr(err)...)
 	}
-	if _, ok := d.GetOk("address"); ok {
+	if _, ok := d.GetOk("address"); importing || ok {
 		if customer.Address != nil {
 			nestedData := make(map[string]interface{})
 			if customer.Address.City != "" {
@@ -632,7 +634,7 @@ func resourceCustomerRead(ctx context.Context, d *schema.ResourceData, meta inte
 			}
 		}
 	}
-	if _, ok := d.GetOk("cash_balance"); ok {
+	if _, ok := d.GetOk("cash_balance"); importing || ok {
 		if customer.CashBalance != nil {
 			nestedData := make(map[string]interface{})
 			if customer.CashBalance.Customer != "" {
@@ -656,7 +658,7 @@ func resourceCustomerRead(ctx context.Context, d *schema.ResourceData, meta inte
 			}
 		}
 	}
-	if _, ok := d.GetOk("invoice_settings"); ok {
+	if _, ok := d.GetOk("invoice_settings"); importing || ok {
 		if customer.InvoiceSettings != nil {
 			nestedData := make(map[string]interface{})
 			if customer.InvoiceSettings.DefaultPaymentMethod != nil {
@@ -682,7 +684,7 @@ func resourceCustomerRead(ctx context.Context, d *schema.ResourceData, meta inte
 			}
 		}
 	}
-	if _, ok := d.GetOk("shipping"); ok {
+	if _, ok := d.GetOk("shipping"); importing || ok {
 		if customer.Shipping != nil {
 			nestedData := make(map[string]interface{})
 			if customer.Shipping.Address != nil {
@@ -726,7 +728,7 @@ func resourceCustomerRead(ctx context.Context, d *schema.ResourceData, meta inte
 			}
 		}
 	}
-	if _, ok := d.GetOk("tax"); ok {
+	if _, ok := d.GetOk("tax"); importing || ok {
 		if customer.Tax != nil {
 			nestedData := make(map[string]interface{})
 			if customer.Tax.AutomaticTax != "" {
@@ -981,4 +983,13 @@ func resourceCustomerDelete(ctx context.Context, d *schema.ResourceData, meta in
 
 	d.SetId("")
 	return nil
+}
+
+func resourceCustomerImportState(ctx context.Context, d *schema.ResourceData, meta interface{}) ([]*schema.ResourceData, error) {
+	diags := resourceCustomerRead(context.WithValue(ctx, "importing", true), d, meta)
+	if diags.HasError() {
+		return nil, fmt.Errorf("%s", diags[0].Summary)
+	}
+
+	return []*schema.ResourceData{d}, nil
 }

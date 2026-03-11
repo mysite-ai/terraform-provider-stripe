@@ -5,6 +5,7 @@ package resources
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
@@ -113,7 +114,7 @@ func ResourceV2BillingRateCardRate() *schema.Resource {
 		DeleteContext: resourceV2BillingRateCardRateDelete,
 
 		Importer: &schema.ResourceImporter{
-			StateContext: schema.ImportStatePassthroughContext,
+			StateContext: resourceV2BillingRateCardRateImportState,
 		},
 	}
 }
@@ -175,6 +176,8 @@ func resourceV2BillingRateCardRateCreate(ctx context.Context, d *schema.Resource
 
 func resourceV2BillingRateCardRateRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	var diags diag.Diagnostics
+	importing := ctx.Value("importing") != nil
+	_ = importing
 	tflog.Debug(ctx, "Reading stripe_v2_billing_rate_card_rate resource", map[string]interface{}{"id": d.Id()})
 	c := meta.(*stripe.Client)
 
@@ -215,7 +218,7 @@ func resourceV2BillingRateCardRateRead(ctx context.Context, d *schema.ResourceDa
 			diags = append(diags, diag.FromErr(err)...)
 		}
 	}
-	if _, ok := d.GetOk("tiers"); ok {
+	if _, ok := d.GetOk("tiers"); importing || ok {
 		if v2_billing_rate_card_rate.Tiers != nil && len(v2_billing_rate_card_rate.Tiers) > 0 {
 			itemsData := make([]interface{}, len(v2_billing_rate_card_rate.Tiers))
 			for i, item := range v2_billing_rate_card_rate.Tiers {
@@ -258,4 +261,21 @@ func resourceV2BillingRateCardRateDelete(ctx context.Context, d *schema.Resource
 
 	d.SetId("")
 	return nil
+}
+
+func resourceV2BillingRateCardRateImportState(ctx context.Context, d *schema.ResourceData, meta interface{}) ([]*schema.ResourceData, error) {
+	parts := strings.SplitN(d.Id(), "/", 2)
+	if len(parts) != 2 {
+		return nil, fmt.Errorf("import ID must be {rate_card_id}/{id}, got: %s", d.Id())
+	}
+
+	d.Set("rate_card_id", parts[0])
+	d.SetId(parts[1])
+
+	diags := resourceV2BillingRateCardRateRead(context.WithValue(ctx, "importing", true), d, meta)
+	if diags.HasError() {
+		return nil, fmt.Errorf("%s", diags[0].Summary)
+	}
+
+	return []*schema.ResourceData{d}, nil
 }

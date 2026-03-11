@@ -133,7 +133,7 @@ func ResourceV2CoreEventDestination() *schema.Resource {
 		DeleteContext: resourceV2CoreEventDestinationDelete,
 
 		Importer: &schema.ResourceImporter{
-			StateContext: schema.ImportStatePassthroughContext,
+			StateContext: resourceV2CoreEventDestinationImportState,
 		},
 	}
 }
@@ -211,6 +211,8 @@ func resourceV2CoreEventDestinationCreate(ctx context.Context, d *schema.Resourc
 
 func resourceV2CoreEventDestinationRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	var diags diag.Diagnostics
+	importing := ctx.Value("importing") != nil
+	_ = importing
 	tflog.Debug(ctx, "Reading stripe_v2_core_event_destination resource", map[string]interface{}{"id": d.Id()})
 	c := meta.(*stripe.Client)
 
@@ -262,7 +264,7 @@ func resourceV2CoreEventDestinationRead(ctx context.Context, d *schema.ResourceD
 	if err := d.Set("status", v2_core_event_destination.Status); err != nil {
 		diags = append(diags, diag.FromErr(err)...)
 	}
-	if _, ok := d.GetOk("amazon_eventbridge"); ok {
+	if _, ok := d.GetOk("amazon_eventbridge"); importing || ok {
 		if v2_core_event_destination.AmazonEventbridge != nil {
 			nestedData := make(map[string]interface{})
 			nestedData["aws_account_id"] = v2_core_event_destination.AmazonEventbridge.AwsAccountID
@@ -275,7 +277,7 @@ func resourceV2CoreEventDestinationRead(ctx context.Context, d *schema.ResourceD
 			}
 		}
 	}
-	if _, ok := d.GetOk("webhook_endpoint"); ok {
+	if _, ok := d.GetOk("webhook_endpoint"); importing || ok {
 		if v2_core_event_destination.WebhookEndpoint != nil {
 			nestedData := make(map[string]interface{})
 			if v2_core_event_destination.WebhookEndpoint.SigningSecret != "" {
@@ -382,4 +384,13 @@ func resourceV2CoreEventDestinationDelete(ctx context.Context, d *schema.Resourc
 
 	d.SetId("")
 	return nil
+}
+
+func resourceV2CoreEventDestinationImportState(ctx context.Context, d *schema.ResourceData, meta interface{}) ([]*schema.ResourceData, error) {
+	diags := resourceV2CoreEventDestinationRead(context.WithValue(ctx, "importing", true), d, meta)
+	if diags.HasError() {
+		return nil, fmt.Errorf("%s", diags[0].Summary)
+	}
+
+	return []*schema.ResourceData{d}, nil
 }

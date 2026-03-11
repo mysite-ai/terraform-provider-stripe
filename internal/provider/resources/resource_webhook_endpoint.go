@@ -203,7 +203,7 @@ func ResourceWebhookEndpoint() *schema.Resource {
 		DeleteContext: resourceWebhookEndpointDelete,
 
 		Importer: &schema.ResourceImporter{
-			StateContext: schema.ImportStatePassthroughContext,
+			StateContext: resourceWebhookEndpointImportState,
 		},
 	}
 }
@@ -255,6 +255,8 @@ func resourceWebhookEndpointCreate(ctx context.Context, d *schema.ResourceData, 
 
 func resourceWebhookEndpointRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	var diags diag.Diagnostics
+	importing := ctx.Value("importing") != nil
+	_ = importing
 	tflog.Debug(ctx, "Reading stripe_webhook_endpoint resource", map[string]interface{}{"id": d.Id()})
 	c := meta.(*stripe.Client)
 
@@ -375,4 +377,13 @@ func resourceWebhookEndpointDelete(ctx context.Context, d *schema.ResourceData, 
 
 	d.SetId("")
 	return nil
+}
+
+func resourceWebhookEndpointImportState(ctx context.Context, d *schema.ResourceData, meta interface{}) ([]*schema.ResourceData, error) {
+	diags := resourceWebhookEndpointRead(context.WithValue(ctx, "importing", true), d, meta)
+	if diags.HasError() {
+		return nil, fmt.Errorf("%s", diags[0].Summary)
+	}
+
+	return []*schema.ResourceData{d}, nil
 }

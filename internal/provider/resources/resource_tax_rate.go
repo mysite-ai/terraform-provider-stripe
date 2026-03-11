@@ -122,7 +122,7 @@ func ResourceTaxRate() *schema.Resource {
 		DeleteContext: resourceTaxRateDelete,
 
 		Importer: &schema.ResourceImporter{
-			StateContext: schema.ImportStatePassthroughContext,
+			StateContext: resourceTaxRateImportState,
 		},
 	}
 }
@@ -173,6 +173,8 @@ func resourceTaxRateCreate(ctx context.Context, d *schema.ResourceData, meta int
 
 func resourceTaxRateRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	var diags diag.Diagnostics
+	importing := ctx.Value("importing") != nil
+	_ = importing
 	tflog.Debug(ctx, "Reading stripe_tax_rate resource", map[string]interface{}{"id": d.Id()})
 	c := meta.(*stripe.Client)
 
@@ -326,4 +328,13 @@ func resourceTaxRateDelete(ctx context.Context, d *schema.ResourceData, meta int
 	tflog.Info(ctx, "stripe_tax_rate marked as inactive successfully", map[string]interface{}{"id": d.Id()})
 	d.SetId("")
 	return nil
+}
+
+func resourceTaxRateImportState(ctx context.Context, d *schema.ResourceData, meta interface{}) ([]*schema.ResourceData, error) {
+	diags := resourceTaxRateRead(context.WithValue(ctx, "importing", true), d, meta)
+	if diags.HasError() {
+		return nil, fmt.Errorf("%s", diags[0].Summary)
+	}
+
+	return []*schema.ResourceData{d}, nil
 }

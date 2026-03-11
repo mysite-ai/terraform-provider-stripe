@@ -326,7 +326,7 @@ func ResourceProduct() *schema.Resource {
 		DeleteContext: resourceProductDelete,
 
 		Importer: &schema.ResourceImporter{
-			StateContext: schema.ImportStatePassthroughContext,
+			StateContext: resourceProductImportState,
 		},
 	}
 }
@@ -471,6 +471,8 @@ func resourceProductCreate(ctx context.Context, d *schema.ResourceData, meta int
 
 func resourceProductRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	var diags diag.Diagnostics
+	importing := ctx.Value("importing") != nil
+	_ = importing
 	tflog.Debug(ctx, "Reading stripe_product resource", map[string]interface{}{"id": d.Id()})
 	c := meta.(*stripe.Client)
 
@@ -523,7 +525,7 @@ func resourceProductRead(ctx context.Context, d *schema.ResourceData, meta inter
 			diags = append(diags, diag.FromErr(err)...)
 		}
 	}
-	if _, ok := d.GetOk("package_dimensions"); ok {
+	if _, ok := d.GetOk("package_dimensions"); importing || ok {
 		if product.PackageDimensions != nil {
 			nestedData := make(map[string]interface{})
 			nestedData["height"] = product.PackageDimensions.Height
@@ -537,7 +539,7 @@ func resourceProductRead(ctx context.Context, d *schema.ResourceData, meta inter
 			}
 		}
 	}
-	if _, ok := d.GetOk("marketing_features"); ok {
+	if _, ok := d.GetOk("marketing_features"); importing || ok {
 		if product.MarketingFeatures != nil && len(product.MarketingFeatures) > 0 {
 			itemsData := make([]interface{}, len(product.MarketingFeatures))
 			for i, item := range product.MarketingFeatures {
@@ -697,4 +699,13 @@ func resourceProductDelete(ctx context.Context, d *schema.ResourceData, meta int
 	tflog.Info(ctx, "stripe_product marked as inactive successfully", map[string]interface{}{"id": d.Id()})
 	d.SetId("")
 	return nil
+}
+
+func resourceProductImportState(ctx context.Context, d *schema.ResourceData, meta interface{}) ([]*schema.ResourceData, error) {
+	diags := resourceProductRead(context.WithValue(ctx, "importing", true), d, meta)
+	if diags.HasError() {
+		return nil, fmt.Errorf("%s", diags[0].Summary)
+	}
+
+	return []*schema.ResourceData{d}, nil
 }

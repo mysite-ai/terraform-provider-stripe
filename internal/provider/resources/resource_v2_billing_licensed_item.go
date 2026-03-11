@@ -54,7 +54,7 @@ func ResourceV2BillingLicensedItem() *schema.Resource {
 		DeleteContext: resourceV2BillingLicensedItemDelete,
 
 		Importer: &schema.ResourceImporter{
-			StateContext: schema.ImportStatePassthroughContext,
+			StateContext: resourceV2BillingLicensedItemImportState,
 		},
 	}
 }
@@ -91,6 +91,8 @@ func resourceV2BillingLicensedItemCreate(ctx context.Context, d *schema.Resource
 
 func resourceV2BillingLicensedItemRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	var diags diag.Diagnostics
+	importing := ctx.Value("importing") != nil
+	_ = importing
 	tflog.Debug(ctx, "Reading stripe_v2_billing_licensed_item resource", map[string]interface{}{"id": d.Id()})
 	c := meta.(*stripe.Client)
 
@@ -190,4 +192,13 @@ func resourceV2BillingLicensedItemDelete(ctx context.Context, d *schema.Resource
 		map[string]interface{}{"id": d.Id()})
 	d.SetId("")
 	return nil
+}
+
+func resourceV2BillingLicensedItemImportState(ctx context.Context, d *schema.ResourceData, meta interface{}) ([]*schema.ResourceData, error) {
+	diags := resourceV2BillingLicensedItemRead(context.WithValue(ctx, "importing", true), d, meta)
+	if diags.HasError() {
+		return nil, fmt.Errorf("%s", diags[0].Summary)
+	}
+
+	return []*schema.ResourceData{d}, nil
 }

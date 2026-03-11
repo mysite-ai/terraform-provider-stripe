@@ -209,7 +209,7 @@ func ResourceV2BillingServiceAction() *schema.Resource {
 		DeleteContext: resourceV2BillingServiceActionDelete,
 
 		Importer: &schema.ResourceImporter{
-			StateContext: schema.ImportStatePassthroughContext,
+			StateContext: resourceV2BillingServiceActionImportState,
 		},
 	}
 }
@@ -308,6 +308,8 @@ func resourceV2BillingServiceActionCreate(ctx context.Context, d *schema.Resourc
 
 func resourceV2BillingServiceActionRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	var diags diag.Diagnostics
+	importing := ctx.Value("importing") != nil
+	_ = importing
 	tflog.Debug(ctx, "Reading stripe_v2_billing_service_action resource", map[string]interface{}{"id": d.Id()})
 	c := meta.(*stripe.Client)
 
@@ -335,7 +337,7 @@ func resourceV2BillingServiceActionRead(ctx context.Context, d *schema.ResourceD
 	if err := d.Set("type", v2_billing_service_action.Type); err != nil {
 		diags = append(diags, diag.FromErr(err)...)
 	}
-	if _, ok := d.GetOk("credit_grant"); ok {
+	if _, ok := d.GetOk("credit_grant"); importing || ok {
 		if v2_billing_service_action.CreditGrant != nil {
 			nestedData := make(map[string]interface{})
 			if v2_billing_service_action.CreditGrant.Amount != nil {
@@ -453,4 +455,13 @@ func resourceV2BillingServiceActionDelete(ctx context.Context, d *schema.Resourc
 		map[string]interface{}{"id": d.Id()})
 	d.SetId("")
 	return nil
+}
+
+func resourceV2BillingServiceActionImportState(ctx context.Context, d *schema.ResourceData, meta interface{}) ([]*schema.ResourceData, error) {
+	diags := resourceV2BillingServiceActionRead(context.WithValue(ctx, "importing", true), d, meta)
+	if diags.HasError() {
+		return nil, fmt.Errorf("%s", diags[0].Summary)
+	}
+
+	return []*schema.ResourceData{d}, nil
 }

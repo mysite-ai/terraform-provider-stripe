@@ -131,7 +131,7 @@ func ResourceBillingMeter() *schema.Resource {
 		DeleteContext: resourceBillingMeterDelete,
 
 		Importer: &schema.ResourceImporter{
-			StateContext: schema.ImportStatePassthroughContext,
+			StateContext: resourceBillingMeterImportState,
 		},
 	}
 }
@@ -195,6 +195,8 @@ func resourceBillingMeterCreate(ctx context.Context, d *schema.ResourceData, met
 
 func resourceBillingMeterRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	var diags diag.Diagnostics
+	importing := ctx.Value("importing") != nil
+	_ = importing
 	tflog.Debug(ctx, "Reading stripe_billing_meter resource", map[string]interface{}{"id": d.Id()})
 	c := meta.(*stripe.Client)
 
@@ -227,7 +229,7 @@ func resourceBillingMeterRead(ctx context.Context, d *schema.ResourceData, meta 
 	if err := d.Set("status", billing_meter.Status); err != nil {
 		diags = append(diags, diag.FromErr(err)...)
 	}
-	if _, ok := d.GetOk("customer_mapping"); ok {
+	if _, ok := d.GetOk("customer_mapping"); importing || ok {
 		if billing_meter.CustomerMapping != nil {
 			nestedData := make(map[string]interface{})
 			nestedData["event_payload_key"] = billing_meter.CustomerMapping.EventPayloadKey
@@ -248,7 +250,7 @@ func resourceBillingMeterRead(ctx context.Context, d *schema.ResourceData, meta 
 			}
 		}
 	}
-	if _, ok := d.GetOk("value_settings"); ok {
+	if _, ok := d.GetOk("value_settings"); importing || ok {
 		if billing_meter.ValueSettings != nil {
 			nestedData := make(map[string]interface{})
 			nestedData["event_payload_key"] = billing_meter.ValueSettings.EventPayloadKey
@@ -301,4 +303,13 @@ func resourceBillingMeterDelete(ctx context.Context, d *schema.ResourceData, met
 	tflog.Info(ctx, "stripe_billing_meter marked as inactive successfully", map[string]interface{}{"id": d.Id()})
 	d.SetId("")
 	return nil
+}
+
+func resourceBillingMeterImportState(ctx context.Context, d *schema.ResourceData, meta interface{}) ([]*schema.ResourceData, error) {
+	diags := resourceBillingMeterRead(context.WithValue(ctx, "importing", true), d, meta)
+	if diags.HasError() {
+		return nil, fmt.Errorf("%s", diags[0].Summary)
+	}
+
+	return []*schema.ResourceData{d}, nil
 }

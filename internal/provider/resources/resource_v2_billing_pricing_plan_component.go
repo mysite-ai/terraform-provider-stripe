@@ -5,6 +5,7 @@ package resources
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
@@ -136,7 +137,7 @@ func ResourceV2BillingPricingPlanComponent() *schema.Resource {
 		DeleteContext: resourceV2BillingPricingPlanComponentDelete,
 
 		Importer: &schema.ResourceImporter{
-			StateContext: schema.ImportStatePassthroughContext,
+			StateContext: resourceV2BillingPricingPlanComponentImportState,
 		},
 	}
 }
@@ -201,6 +202,8 @@ func resourceV2BillingPricingPlanComponentCreate(ctx context.Context, d *schema.
 
 func resourceV2BillingPricingPlanComponentRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	var diags diag.Diagnostics
+	importing := ctx.Value("importing") != nil
+	_ = importing
 	tflog.Debug(ctx, "Reading stripe_v2_billing_pricing_plan_component resource", map[string]interface{}{"id": d.Id()})
 	c := meta.(*stripe.Client)
 
@@ -236,7 +239,7 @@ func resourceV2BillingPricingPlanComponentRead(ctx context.Context, d *schema.Re
 	if err := d.Set("pricing_plan_version", v2_billing_pricing_plan_component.PricingPlanVersion); err != nil {
 		diags = append(diags, diag.FromErr(err)...)
 	}
-	if _, ok := d.GetOk("license_fee"); ok {
+	if _, ok := d.GetOk("license_fee"); importing || ok {
 		if v2_billing_pricing_plan_component.LicenseFee != nil {
 			nestedData := make(map[string]interface{})
 			nestedData["id"] = v2_billing_pricing_plan_component.LicenseFee.ID
@@ -248,7 +251,7 @@ func resourceV2BillingPricingPlanComponentRead(ctx context.Context, d *schema.Re
 			}
 		}
 	}
-	if _, ok := d.GetOk("rate_card"); ok {
+	if _, ok := d.GetOk("rate_card"); importing || ok {
 		if v2_billing_pricing_plan_component.RateCard != nil {
 			nestedData := make(map[string]interface{})
 			nestedData["id"] = v2_billing_pricing_plan_component.RateCard.ID
@@ -260,7 +263,7 @@ func resourceV2BillingPricingPlanComponentRead(ctx context.Context, d *schema.Re
 			}
 		}
 	}
-	if _, ok := d.GetOk("service_action"); ok {
+	if _, ok := d.GetOk("service_action"); importing || ok {
 		if v2_billing_pricing_plan_component.ServiceAction != nil {
 			nestedData := make(map[string]interface{})
 			nestedData["id"] = v2_billing_pricing_plan_component.ServiceAction.ID
@@ -346,4 +349,21 @@ func resourceV2BillingPricingPlanComponentDelete(ctx context.Context, d *schema.
 
 	d.SetId("")
 	return nil
+}
+
+func resourceV2BillingPricingPlanComponentImportState(ctx context.Context, d *schema.ResourceData, meta interface{}) ([]*schema.ResourceData, error) {
+	parts := strings.SplitN(d.Id(), "/", 2)
+	if len(parts) != 2 {
+		return nil, fmt.Errorf("import ID must be {pricing_plan_id}/{id}, got: %s", d.Id())
+	}
+
+	d.Set("pricing_plan_id", parts[0])
+	d.SetId(parts[1])
+
+	diags := resourceV2BillingPricingPlanComponentRead(context.WithValue(ctx, "importing", true), d, meta)
+	if diags.HasError() {
+		return nil, fmt.Errorf("%s", diags[0].Summary)
+	}
+
+	return []*schema.ResourceData{d}, nil
 }

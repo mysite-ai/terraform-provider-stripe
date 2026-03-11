@@ -356,7 +356,7 @@ func ResourcePrice() *schema.Resource {
 		DeleteContext: resourcePriceDelete,
 
 		Importer: &schema.ResourceImporter{
-			StateContext: schema.ImportStatePassthroughContext,
+			StateContext: resourcePriceImportState,
 		},
 	}
 }
@@ -510,6 +510,8 @@ func resourcePriceCreate(ctx context.Context, d *schema.ResourceData, meta inter
 
 func resourcePriceRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	var diags diag.Diagnostics
+	importing := ctx.Value("importing") != nil
+	_ = importing
 	tflog.Debug(ctx, "Reading stripe_price resource", map[string]interface{}{"id": d.Id()})
 	c := meta.(*stripe.Client)
 
@@ -583,7 +585,7 @@ func resourcePriceRead(ctx context.Context, d *schema.ResourceData, meta interfa
 			diags = append(diags, diag.FromErr(err)...)
 		}
 	}
-	if _, ok := d.GetOk("custom_unit_amount"); ok {
+	if _, ok := d.GetOk("custom_unit_amount"); importing || ok {
 		if price.CustomUnitAmount != nil {
 			nestedData := make(map[string]interface{})
 			nestedData["maximum"] = int(price.CustomUnitAmount.Maximum)
@@ -596,7 +598,7 @@ func resourcePriceRead(ctx context.Context, d *schema.ResourceData, meta interfa
 			}
 		}
 	}
-	if _, ok := d.GetOk("recurring"); ok {
+	if _, ok := d.GetOk("recurring"); importing || ok {
 		if price.Recurring != nil {
 			nestedData := make(map[string]interface{})
 			nestedData["interval"] = price.Recurring.Interval
@@ -611,7 +613,7 @@ func resourcePriceRead(ctx context.Context, d *schema.ResourceData, meta interfa
 			}
 		}
 	}
-	if _, ok := d.GetOk("tiers"); ok {
+	if _, ok := d.GetOk("tiers"); importing || ok {
 		if price.Tiers != nil && len(price.Tiers) > 0 {
 			itemsData := make([]interface{}, len(price.Tiers))
 			for i, item := range price.Tiers {
@@ -737,4 +739,13 @@ func resourcePriceDelete(ctx context.Context, d *schema.ResourceData, meta inter
 	tflog.Info(ctx, "stripe_price marked as inactive successfully", map[string]interface{}{"id": d.Id()})
 	d.SetId("")
 	return nil
+}
+
+func resourcePriceImportState(ctx context.Context, d *schema.ResourceData, meta interface{}) ([]*schema.ResourceData, error) {
+	diags := resourcePriceRead(context.WithValue(ctx, "importing", true), d, meta)
+	if diags.HasError() {
+		return nil, fmt.Errorf("%s", diags[0].Summary)
+	}
+
+	return []*schema.ResourceData{d}, nil
 }

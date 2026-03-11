@@ -173,7 +173,7 @@ func ResourceCoupon() *schema.Resource {
 		DeleteContext: resourceCouponDelete,
 
 		Importer: &schema.ResourceImporter{
-			StateContext: schema.ImportStatePassthroughContext,
+			StateContext: resourceCouponImportState,
 		},
 	}
 }
@@ -261,6 +261,8 @@ func resourceCouponCreate(ctx context.Context, d *schema.ResourceData, meta inte
 
 func resourceCouponRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	var diags diag.Diagnostics
+	importing := ctx.Value("importing") != nil
+	_ = importing
 	tflog.Debug(ctx, "Reading stripe_coupon resource", map[string]interface{}{"id": d.Id()})
 	c := meta.(*stripe.Client)
 
@@ -329,7 +331,7 @@ func resourceCouponRead(ctx context.Context, d *schema.ResourceData, meta interf
 	if err := d.Set("valid", coupon.Valid); err != nil {
 		diags = append(diags, diag.FromErr(err)...)
 	}
-	if _, ok := d.GetOk("applies_to"); ok {
+	if _, ok := d.GetOk("applies_to"); importing || ok {
 		if coupon.AppliesTo != nil {
 			nestedData := make(map[string]interface{})
 			if len(nestedData) > 0 {
@@ -339,7 +341,7 @@ func resourceCouponRead(ctx context.Context, d *schema.ResourceData, meta interf
 			}
 		}
 	}
-	if _, ok := d.GetOk("script"); ok {
+	if _, ok := d.GetOk("script"); importing || ok {
 		if coupon.Script != nil {
 			nestedData := make(map[string]interface{})
 			nestedData["display_name"] = coupon.Script.DisplayName
@@ -435,4 +437,13 @@ func resourceCouponDelete(ctx context.Context, d *schema.ResourceData, meta inte
 
 	d.SetId("")
 	return nil
+}
+
+func resourceCouponImportState(ctx context.Context, d *schema.ResourceData, meta interface{}) ([]*schema.ResourceData, error) {
+	diags := resourceCouponRead(context.WithValue(ctx, "importing", true), d, meta)
+	if diags.HasError() {
+		return nil, fmt.Errorf("%s", diags[0].Summary)
+	}
+
+	return []*schema.ResourceData{d}, nil
 }

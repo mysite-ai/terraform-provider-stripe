@@ -153,7 +153,7 @@ func ResourceV2BillingLicenseFee() *schema.Resource {
 		DeleteContext: resourceV2BillingLicenseFeeDelete,
 
 		Importer: &schema.ResourceImporter{
-			StateContext: schema.ImportStatePassthroughContext,
+			StateContext: resourceV2BillingLicenseFeeImportState,
 		},
 	}
 }
@@ -227,6 +227,8 @@ func resourceV2BillingLicenseFeeCreate(ctx context.Context, d *schema.ResourceDa
 
 func resourceV2BillingLicenseFeeRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	var diags diag.Diagnostics
+	importing := ctx.Value("importing") != nil
+	_ = importing
 	tflog.Debug(ctx, "Reading stripe_v2_billing_license_fee resource", map[string]interface{}{"id": d.Id()})
 	c := meta.(*stripe.Client)
 
@@ -283,7 +285,7 @@ func resourceV2BillingLicenseFeeRead(ctx context.Context, d *schema.ResourceData
 			diags = append(diags, diag.FromErr(err)...)
 		}
 	}
-	if _, ok := d.GetOk("tiers"); ok {
+	if _, ok := d.GetOk("tiers"); importing || ok {
 		if v2_billing_license_fee.Tiers != nil && len(v2_billing_license_fee.Tiers) > 0 {
 			itemsData := make([]interface{}, len(v2_billing_license_fee.Tiers))
 			for i, item := range v2_billing_license_fee.Tiers {
@@ -406,4 +408,13 @@ func resourceV2BillingLicenseFeeDelete(ctx context.Context, d *schema.ResourceDa
 		map[string]interface{}{"id": d.Id()})
 	d.SetId("")
 	return nil
+}
+
+func resourceV2BillingLicenseFeeImportState(ctx context.Context, d *schema.ResourceData, meta interface{}) ([]*schema.ResourceData, error) {
+	diags := resourceV2BillingLicenseFeeRead(context.WithValue(ctx, "importing", true), d, meta)
+	if diags.HasError() {
+		return nil, fmt.Errorf("%s", diags[0].Summary)
+	}
+
+	return []*schema.ResourceData{d}, nil
 }
