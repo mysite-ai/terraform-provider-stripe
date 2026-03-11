@@ -17,7 +17,7 @@ import (
 // ResourceV2BillingRateCardRate returns the schema for the stripe_v2_billing_rate_card_rate resource
 func ResourceV2BillingRateCardRate() *schema.Resource {
 	return &schema.Resource{
-		Description: "Manages a stripe_v2_billing_rate_card_rate resource in Stripe.",
+		Description: "A Rate Card Rate represents a single usage-based price within a Rate Card. Each rate binds to one Metered Item and defines the pricing structure for that item, including either a flat unit amount or tiered pricing. Rates support features like graduated or volume-based tiering, quantity transformations, and custom pricing units.",
 
 		Schema: map[string]*schema.Schema{
 			"id": {
@@ -41,13 +41,12 @@ func ResourceV2BillingRateCardRate() *schema.Resource {
 			"metered_item": {
 				Type:        schema.TypeString,
 				Description: "The Metered Item that this rate binds to.",
-				Optional:    true,
-				Computed:    true,
+				Required:    true,
 				ForceNew:    true,
 			},
 			"tiering_mode": {
 				Type:        schema.TypeString,
-				Description: "Defines whether the tiered price should be graduated or volume-based. In volume-based tiering, the maximum quantity within a period determines the per-unit price. In graduated tiering, the pricing changes as the quantity grows into new tiers. Can only be set if `tiers` is set.",
+				Description: "Defines whether the tiered price should be graduated or volume-based. In volume-based tiering, the maximum quantity within a period determines the per-unit price. In graduated tiering, the pricing changes as the quantity grows into new tiers. One of `unit_amount`, `tiers`, or `custom_pricing_unit_amount` is required.",
 				Optional:    true,
 				Computed:    true,
 				ForceNew:    true,
@@ -58,7 +57,7 @@ func ResourceV2BillingRateCardRate() *schema.Resource {
 			},
 			"unit_amount": {
 				Type:             schema.TypeString,
-				Description:      "The per-unit amount to be charged, represented as a decimal string in minor currency units with at most 12 decimal places. Cannot be set if `tiers` is provided.",
+				Description:      "The per-unit amount to be charged, represented as a decimal string in minor currency units with at most 12 decimal places. One of `unit_amount`, `tiers`, or `custom_pricing_unit_amount` is required.",
 				Optional:         true,
 				Computed:         true,
 				ForceNew:         true,
@@ -78,7 +77,7 @@ func ResourceV2BillingRateCardRate() *schema.Resource {
 				Type:        schema.TypeList,
 				Optional:    true,
 				ForceNew:    true,
-				Description: "Each element represents a pricing tier. Cannot be set if `unit_amount` is provided.",
+				Description: "Each element represents a pricing tier. One of `unit_amount`, `tiers`, or `custom_pricing_unit_amount` is required.",
 				Elem: &schema.Resource{
 					Schema: map[string]*schema.Schema{
 						"flat_amount": {

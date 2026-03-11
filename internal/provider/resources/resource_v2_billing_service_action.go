@@ -16,7 +16,7 @@ import (
 // ResourceV2BillingServiceAction returns the schema for the stripe_v2_billing_service_action resource
 func ResourceV2BillingServiceAction() *schema.Resource {
 	return &schema.Resource{
-		Description: "Manages a stripe_v2_billing_service_action resource in Stripe.",
+		Description: "Service Actions represent actions applied during service assessment periods, such as granting credits to a customer.",
 
 		Schema: map[string]*schema.Schema{
 			"id": {
@@ -98,15 +98,15 @@ func ResourceV2BillingServiceAction() *schema.Resource {
 										Description: "The monetary amount of the credit grant. Required if `type` is `monetary`.",
 										Elem: &schema.Resource{
 											Schema: map[string]*schema.Schema{
-												"amount": {
-													Type:        schema.TypeInt,
-													Description: "A non-negative integer representing how much to charge in the [smallest currency unit](https://docs.stripe.com/currencies#minor-units).",
-													Optional:    true,
-												},
 												"currency": {
 													Type:        schema.TypeString,
 													Description: "Three-letter [ISO currency code](https://www.iso.org/iso-4217-currency-codes.html), in lowercase. Must be a [supported currency](https://stripe.com/docs/currencies).",
-													Optional:    true,
+													Required:    true,
+												},
+												"value": {
+													Type:        schema.TypeInt,
+													Description: "A non-negative integer representing how much to charge in the [smallest currency unit](https://docs.stripe.com/currencies#minor-units).",
+													Required:    true,
 												},
 											},
 										},
@@ -249,11 +249,11 @@ func resourceV2BillingServiceActionCreate(ctx context.Context, d *schema.Resourc
 			if v, ok := nestedData0["monetary"].([]interface{}); ok && len(v) > 0 {
 				nestedData1 := v[0].(map[string]interface{})
 				params.CreditGrant.Amount.Monetary = &stripe.V2BillingServiceActionCreateCreditGrantAmountMonetaryParams{}
-				if val, ok := nestedData1["amount"].(int); ok && val > 0 {
-					params.CreditGrant.Amount.Monetary.Value = stripe.Int64(int64(val))
-				}
 				if val, ok := nestedData1["currency"].(string); ok && val != "" {
 					params.CreditGrant.Amount.Monetary.Currency = stripe.String(val)
+				}
+				if val, ok := nestedData1["value"].(int); ok {
+					params.CreditGrant.Amount.Monetary.Value = stripe.Int64(int64(val))
 				}
 			}
 			if val, ok := nestedData0["type"].(string); ok && val != "" {
@@ -368,10 +368,10 @@ func resourceV2BillingServiceActionRead(ctx context.Context, d *schema.ResourceD
 				}
 				if v2_billing_service_action.CreditGrant.Amount.Monetary != nil {
 					nestedData1 := make(map[string]interface{})
-					nestedData1["amount"] = int(v2_billing_service_action.CreditGrant.Amount.Monetary.Value)
 					if v2_billing_service_action.CreditGrant.Amount.Monetary.Currency != "" {
 						nestedData1["currency"] = v2_billing_service_action.CreditGrant.Amount.Monetary.Currency
 					}
+					nestedData1["value"] = int(v2_billing_service_action.CreditGrant.Amount.Monetary.Value)
 					nestedData0["monetary"] = []interface{}{nestedData1}
 				}
 				if v2_billing_service_action.CreditGrant.Amount.Type != "" {

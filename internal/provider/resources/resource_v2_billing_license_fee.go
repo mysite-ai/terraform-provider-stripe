@@ -16,7 +16,7 @@ import (
 // ResourceV2BillingLicenseFee returns the schema for the stripe_v2_billing_license_fee resource
 func ResourceV2BillingLicenseFee() *schema.Resource {
 	return &schema.Resource{
-		Description: "Manages a stripe_v2_billing_license_fee resource in Stripe.",
+		Description: "A License Fee represents a versioned recurring charge for a Licensed Item, typically used for seat-based or quantity-based pricing. Each License Fee defines the pricing structure (flat unit amount or tiered pricing) and service interval. After creating a License Fee, you can subscribe customers to it by creating a License Fee Subscription.",
 
 		Schema: map[string]*schema.Schema{
 			"id": {

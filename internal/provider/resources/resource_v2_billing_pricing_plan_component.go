@@ -17,7 +17,7 @@ import (
 // ResourceV2BillingPricingPlanComponent returns the schema for the stripe_v2_billing_pricing_plan_component resource
 func ResourceV2BillingPricingPlanComponent() *schema.Resource {
 	return &schema.Resource{
-		Description: "Manages a stripe_v2_billing_pricing_plan_component resource in Stripe.",
+		Description: "A Pricing Plan Component represents an individual billing element within a Pricing Plan. Components can be Rate Cards for usage-based charges, License Fees for recurring fixed charges, or Service Actions for recurring credit grants. Each component is associated with a specific version of the Pricing Plan and defines one aspect of how customers are billed.",
 
 		Schema: map[string]*schema.Schema{
 			"id": {
@@ -80,7 +80,7 @@ func ResourceV2BillingPricingPlanComponent() *schema.Resource {
 						},
 						"version": {
 							Type:        schema.TypeString,
-							Description: "The ID of the License Fee Version. Defaults to 'latest', if not specified.",
+							Description: "The version of the LicenseFee. Defaults to 'latest', if not specified.",
 							Optional:    true,
 							Computed:    true,
 							ForceNew:    true,
@@ -104,7 +104,7 @@ func ResourceV2BillingPricingPlanComponent() *schema.Resource {
 						},
 						"version": {
 							Type:        schema.TypeString,
-							Description: "The ID of the Rate Card Version. Defaults to 'latest', if not specified.",
+							Description: "The version of the RateCard. Defaults to 'latest', if not specified.",
 							Optional:    true,
 							Computed:    true,
 							ForceNew:    true,
