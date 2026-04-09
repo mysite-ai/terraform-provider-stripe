@@ -489,36 +489,36 @@ func resourcePriceCreate(ctx context.Context, d *schema.ResourceData, meta inter
 				if val, ok := item["tax_behavior"].(string); ok && val != "" {
 					entry.TaxBehavior = stripe.String(val)
 				}
-			if val, ok := item["unit_amount_decimal"].(string); ok && val != "" {
-				if f, err := strconv.ParseFloat(val, 64); err == nil {
-					entry.UnitAmountDecimal = stripe.Float64(f)
+				if val, ok := item["unit_amount_decimal"].(string); ok && val != "" {
+					if f, err := strconv.ParseFloat(val, 64); err == nil {
+						entry.UnitAmountDecimal = stripe.Float64(f)
+					}
+				} else if val, ok := item["unit_amount"].(int); ok {
+					entry.UnitAmount = stripe.Int64(int64(val))
 				}
-			} else if val, ok := item["unit_amount"].(int); ok {
-				entry.UnitAmount = stripe.Int64(int64(val))
+				params.CurrencyOptions[key] = entry
 			}
-			params.CurrencyOptions[key] = entry
 		}
 	}
-}
-if v, ok := d.Get("tiers").([]interface{}); ok && len(v) > 0 {
+	if v, ok := d.Get("tiers").([]interface{}); ok && len(v) > 0 {
 		conditions := make([]*stripe.PriceCreateTierParams, len(v))
 		for i, item := range v {
 			data := item.(map[string]interface{})
-		condition := &stripe.PriceCreateTierParams{}
-		if flat_amount_decimal, ok := data["flat_amount_decimal"].(string); ok && flat_amount_decimal != "" {
-			if f, err := strconv.ParseFloat(flat_amount_decimal, 64); err == nil {
-				condition.FlatAmountDecimal = stripe.Float64(f)
+			condition := &stripe.PriceCreateTierParams{}
+			if flat_amount_decimal, ok := data["flat_amount_decimal"].(string); ok && flat_amount_decimal != "" {
+				if f, err := strconv.ParseFloat(flat_amount_decimal, 64); err == nil {
+					condition.FlatAmountDecimal = stripe.Float64(f)
+				}
+			} else if val, ok := data["flat_amount"].(int); ok {
+				condition.FlatAmount = stripe.Int64(int64(val))
 			}
-		} else if val, ok := data["flat_amount"].(int); ok {
-			condition.FlatAmount = stripe.Int64(int64(val))
-		}
-		if unit_amount_decimal, ok := data["unit_amount_decimal"].(string); ok && unit_amount_decimal != "" {
-			if f, err := strconv.ParseFloat(unit_amount_decimal, 64); err == nil {
-				condition.UnitAmountDecimal = stripe.Float64(f)
+			if unit_amount_decimal, ok := data["unit_amount_decimal"].(string); ok && unit_amount_decimal != "" {
+				if f, err := strconv.ParseFloat(unit_amount_decimal, 64); err == nil {
+					condition.UnitAmountDecimal = stripe.Float64(f)
+				}
+			} else if val, ok := data["unit_amount"].(int); ok {
+				condition.UnitAmount = stripe.Int64(int64(val))
 			}
-		} else if val, ok := data["unit_amount"].(int); ok {
-			condition.UnitAmount = stripe.Int64(int64(val))
-		}
 			if up_to, ok := data["up_to"].(string); ok && up_to != "" {
 				if up_to == "inf" {
 					condition.UpToInf = stripe.Bool(true)
@@ -738,18 +738,18 @@ func resourcePriceUpdate(ctx context.Context, d *schema.ResourceData, meta inter
 					if key == "" {
 						continue
 					}
-				entry := &stripe.PriceUpdateCurrencyOptionsParams{}
-				if val, ok := item["tax_behavior"].(string); ok && val != "" {
-					entry.TaxBehavior = stripe.String(val)
-				}
-				if val, ok := item["unit_amount_decimal"].(string); ok && val != "" {
-					if f, err := strconv.ParseFloat(val, 64); err == nil {
-						entry.UnitAmountDecimal = stripe.Float64(f)
+					entry := &stripe.PriceUpdateCurrencyOptionsParams{}
+					if val, ok := item["tax_behavior"].(string); ok && val != "" {
+						entry.TaxBehavior = stripe.String(val)
 					}
-				} else if val, ok := item["unit_amount"].(int); ok {
-					entry.UnitAmount = stripe.Int64(int64(val))
-				}
-				params.CurrencyOptions[key] = entry
+					if val, ok := item["unit_amount_decimal"].(string); ok && val != "" {
+						if f, err := strconv.ParseFloat(val, 64); err == nil {
+							entry.UnitAmountDecimal = stripe.Float64(f)
+						}
+					} else if val, ok := item["unit_amount"].(int); ok {
+						entry.UnitAmount = stripe.Int64(int64(val))
+					}
+					params.CurrencyOptions[key] = entry
 				}
 			}
 		}
