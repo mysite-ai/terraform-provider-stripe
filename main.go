@@ -22,7 +22,7 @@ func main() {
 
 	opts := &plugin.ServeOpts{
 		Debug:        debugMode,
-		ProviderAddr: "registry.terraform.io/stripe/stripe",
+		ProviderAddr: "registry.terraform.io/mysite-ai/stripe",
 		ProviderFunc: provider.New(version),
 	}
 

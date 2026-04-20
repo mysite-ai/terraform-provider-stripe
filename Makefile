@@ -1,10 +1,10 @@
 # Terraform Provider for Stripe
 
 HOSTNAME=registry.terraform.io
-NAMESPACE=stripe
+NAMESPACE=mysite-ai
 NAME=stripe
 BINARY=terraform-provider-${NAME}
-VERSION=0.1.0
+VERSION=0.99.0
 
 # Detect OS and architecture
 OS=$(shell go env GOOS)
