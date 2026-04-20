@@ -13,7 +13,7 @@ Create a new Terraform file, `main.tf`:
 terraform {
   required_providers {
     stripe = {
-      source = "stripe/stripe"
+      source = "mysite-ai/stripe"
       version = "0.1.3"
     }
   }
@@ -149,7 +149,7 @@ Create a `main.tf` file with the provider configuration:
 terraform {
   required_providers {
     stripe = {
-      source  = "stripe/stripe"
+      source  = "mysite-ai/stripe"
       version = "0.1.0"
     }
   }

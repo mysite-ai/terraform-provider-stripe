@@ -1,8 +1,8 @@
 terraform {
   required_providers {
     stripe = {
-      source  = "stripe/stripe"
-      version = "0.1.0"
+      source  = "mysite-ai/stripe"
+      version = "0.99.0"
     }
   }
 }
